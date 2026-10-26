@@ -11,10 +11,6 @@ Projet de laboratoire pour déployer un cluster Kubernetes sur trois machines vi
 
 ## Illustrations du projet
 
-![Architecture du cluster Kubernetes](docs/images/Cluster-Manager-01.png)
-
-## Illustrations du projet
-
 ### Google Cloud Platform
 ![Google Cloud Platform](docs/images/Google-Cloud-Platform-01.png)
 
@@ -23,6 +19,7 @@ Projet de laboratoire pour déployer un cluster Kubernetes sur trois machines vi
 
 ### Cluster Kubernetes
 ![Architecture du cluster Kubernetes](docs/images/Kubernetes-Cluster-01.png)
+![Architecture du cluster Kubernetes](docs/images/Cluster-Manager-01.png)
 
 ### Rancher
 ![Interface Rancher](docs/images/Rancher-01.png)
