@@ -10,16 +10,18 @@ Rancher pour l'administration du cluster.
 
 ## 1. Architecture cible
 
-  Rôle            Nom d'hôte        Adresse IP prévue
-  --------------- ----------------- -------------------
-  Control Plane   `k8s-server-01`   `192.168.189.10`
-  Worker          `k8s-server-02`   `192.168.189.11`
-  Worker          `k8s-server-03`   `192.168.189.12`
+### Architecture du cluster
+
+| Rôle          | Nom d'hôte      | Adresse IP prévue |
+|---------------|-----------------|-------------------|
+| Control Plane | `k8s-server-01` | `192.168.189.10`  |
+| Worker        | `k8s-server-02` | `192.168.189.11`  |
+| Worker        | `k8s-server-03` | `192.168.189.12`  |
+
 
 -   **Système :** Ubuntu Server 24.04 LTS
 -   **Virtualisation :** VMware
--   **Réseau prévu :** `192.168.189.0/24`, à confirmer dans la
-    configuration VMware
+-   **Réseau prévu :** `192.168.189.0/24`, à confirmer dans la configuration VMware
 -   **Initialisation :** `kubeadm`
 -   **Runtime envisagé :** `containerd`
 -   **Gestion du cluster :** Rancher
