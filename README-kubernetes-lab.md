@@ -3,13 +3,36 @@
 Projet de laboratoire pour déployer un cluster Kubernetes sur trois machines virtuelles Ubuntu Server 24.04 sous VMware, puis intégrer Rancher pour l'administration du cluster.
 
 
+> [!NOTE]
+> **État du projet :** dépôt Git créé. La documentation et les procédures seront complétées et validées au fur et à mesure de l'installation.
+
+
+---
+
+## Illustrations du projet
+
 ![Architecture du cluster Kubernetes](docs/images/Cluster-Manager-01.png)
+
+## Illustrations du projet
+
+### Google Cloud Platform
+![Google Cloud Platform](docs/images/Google-Cloud-Platform-01.png)
+
+### Kubernetes
+![Kubernetes](docs/images/Kubernetes-01.png)
+
+### Cluster Kubernetes
+![Architecture du cluster Kubernetes](docs/images/Kubernetes-Cluster-01.png)
+
+### Rancher
+![Interface Rancher](docs/images/Rancher-01.png)
+
+### Workflow Rancher
+![Workflow Rancher](docs/images/Rancher-workflow-01.png)
+
 
 <!-- Images : [`docs/images/Cluster-Manager-01.png`](docs/images/Cluster-Manager-01.png) -->
 
-
-> [!NOTE]
-> **État du projet :** dépôt Git créé. La documentation et les procédures seront complétées et validées au fur et à mesure de l'installation.
 
 ## 1. Architecture cible
 
