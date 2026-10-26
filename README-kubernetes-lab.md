@@ -72,6 +72,11 @@ Projet de laboratoire pour déployer un cluster Kubernetes sur trois machines vi
 - Connectivité Internet pour télécharger les paquets et les images.
 - Ressources CPU, mémoire et stockage adaptées au laboratoire.
 - VMware, un terminal Windows et un client SSH sur le poste d'administration.
+- Vérifier l'état du swap sur les trois VM et appliquer la configuration compatible avec le mode de fonctionnement Kubernetes retenu.
+- Vérifier la prise en charge des modules noyau et des paramètres réseau nécessaires au runtime et au plugin CNI.
+- Identifier l'état du pare-feu UFW et prévoir les règles nécessaires aux communications entre les nœuds.
+- Vérifier la compatibilité des versions de Kubernetes, de containerd, du plugin CNI et de Rancher.
+- Prévoir Helm si Rancher est installé sur Kubernetes à l'aide de son chart Helm.
 
 > [!IMPORTANT]
 > Kubernetes et Rancher peuvent demander davantage de ressources selon les composants installés. Une configuration minimale ne garantit pas de bonnes performances.
@@ -102,13 +107,17 @@ Créer les fichiers référencés avant de considérer la documentation comme co
 
 Documenter la version d'Ubuntu, le nombre de CPU, la mémoire, le disque, le mode réseau VMware, les noms d'hôtes et la méthode d'accès SSH.
 
+Vérifier également l'état du swap et préparer les paramètres système nécessaires à Kubernetes. Pour le déploiement standard retenu dans ce laboratoire, le swap doit être désactivé, sauf si une configuration compatible avec son utilisation est explicitement mise en place.
+
+Documenter les modifications apportées à la configuration persistante afin qu'elles restent cohérentes après un redémarrage.
+
 Document : [`docs/01-vm-setup.md`](docs/01-vm-setup.md)
 
 ### Étape 2 — Configurer le réseau et les noms
 
 Vérifier le réseau VMware avant d'attribuer les adresses. Ubuntu Server utilise généralement Netplan pour la configuration réseau. Identifier la passerelle et les DNS réels, sans reprendre des valeurs supposées.
 
-Commandes de diagnostic :
+**Commandes de diagnostic :**
 
 ```bash
 ip -br address
@@ -117,19 +126,48 @@ resolvectl status
 hostnamectl
 ```
 
-Tester ensuite la connectivité entre les nœuds et vers la passerelle. Consigner les résultats observés.
+**Vérifier également l'état du pare-feu UFW sur chaque machine :**
+
+```bash
+sudo ufw status verbose
+```
+
+Si le pare-feu est actif, identifier les règles nécessaires à l'API Kubernetes, aux communications entre les nœuds et au plugin CNI choisi. Ne pas désactiver systématiquement le pare-feu : adapter les règles aux composants effectivement installés et au réseau du laboratoire.
+
+
 
 Document : [`docs/02-network-dns.md`](docs/02-network-dns.md)
 
 ### Étape 3 — Installer le runtime de conteneurs
 
-Pour un déploiement `kubeadm`, `containerd` est un choix courant de runtime compatible CRI. Suivre la documentation officielle pour préparer le système, configurer le runtime et installer les outils Kubernetes. Vérifier la compatibilité des versions avant d'exécuter les commandes.
+
+Pour ce laboratoire, containerd est le runtime de conteneurs retenu pour Kubernetes. Il doit être configuré avec une interface CRI compatible avec la version de Kubernetes installée.
+
+Avant l'installation, préparer les modules noyau nécessaires, notamment overlay et br_netfilter selon la configuration retenue, puis vérifier les paramètres réseau du noyau, dont net.ipv4.ip_forward et les paramètres de traitement du trafic des ponts réseau.
+
+Vérifier également la configuration de systemd cgroups, le fonctionnement du service containerd et la disponibilité de son interface CRI.
+
+Précision sur Docker : depuis Kubernetes 1.24, Docker Engine n'est plus pris en charge directement comme runtime natif par Kubernetes. Il n'est pas nécessaire d'installer Docker Engine sur les nœuds pour utiliser containerd. Docker peut être utilisé séparément ou avec un adaptateur CRI approprié.
+
+
+<!-- Pour un déploiement `kubeadm`, `containerd` est un choix courant de runtime compatible CRI. Suivre la documentation officielle pour préparer le système, configurer le runtime et installer les outils Kubernetes. Vérifier la compatibilité des versions avant d'exécuter les commandes. -->
 
 Document : [`docs/03-container-runtime.md`](docs/03-container-runtime.md)
 
 ### Étape 4 — Installer Kubernetes
 
 Installer les composants requis sur les trois machines, puis initialiser le Control Plane sur `k8s-server-01`. Installer le plugin réseau CNI retenu et joindre les Workers à l'aide de la commande `kubeadm join` générée par le Control Plane.
+
+Avant l'initialisation du Control Plane, vérifier sur les trois VM :
+
+- que le runtime fonctionne et que son interface CRI est disponible ;
+- que les modules noyau et les paramètres réseau nécessaires sont actifs ;
+- que la configuration du swap correspond au mode de fonctionnement choisi ;
+- que les versions de kubeadm, kubelet et kubectl sont compatibles ;
+- que le réseau permet les communications nécessaires entre les composants.
+
+Après l'installation du plugin CNI, vérifier la disponibilité des nœuds et l'état des pods système avant de poursuivre.
+
 
 > [!CAUTION]
 > Ne publie jamais dans le dépôt une commande `kubeadm join` contenant son jeton, une clé privée SSH, un mot de passe ou un kubeconfig sensible.
@@ -138,7 +176,15 @@ Document : [`docs/04-kubernetes.md`](docs/04-kubernetes.md)
 
 ### Étape 5 — Installer Rancher
 
-Choisir une méthode compatible avec la version de Kubernetes et les prérequis de Rancher. Pour un déploiement destiné à durer, étudier l'installation sur Kubernetes avec Helm. Un conteneur Docker Rancher unique peut servir à des tests, mais ne doit pas être présenté comme une architecture de production.
+
+Choisir une méthode compatible avec les versions de Kubernetes et de Rancher retenues. Pour ce laboratoire, étudier l'installation de Rancher sur Kubernetes avec Helm.
+
+Avant le déploiement, vérifier les prérequis officiels, installer Helm sur le poste d'administration ou sur une machine disposant de l'accès nécessaire au cluster, puis préparer les composants requis par la méthode choisie, notamment l'accès HTTPS et le certificat adapté.
+
+Un conteneur Docker Rancher unique peut servir à des tests, mais cette méthode ne doit pas être présentée comme une architecture de production.
+
+
+<!-- Choisir une méthode compatible avec la version de Kubernetes et les prérequis de Rancher. Pour un déploiement destiné à durer, étudier l'installation sur Kubernetes avec Helm. Un conteneur Docker Rancher unique peut servir à des tests, mais ne doit pas être présenté comme une architecture de production. -->
 
 Document : [`docs/05-rancher.md`](docs/05-rancher.md)
 
@@ -203,6 +249,8 @@ Document : [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)
 - [Documentation Rancher](https://ranchermanager.docs.rancher.com/)
 - [Installer Rancher sur Kubernetes avec Helm](https://ranchermanager.docs.rancher.com/getting-started/installation-and-upgrade/install-upgrade-on-a-kubernetes-cluster)
 - [Installer Docker Engine sur Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
+- [Documentation officielle de containerd](https://containerd.io/docs/?utm_source=chatgpt.com)
+- [Documentation officielle de Helm](https://helm.sh/docs/?utm_source=chatgpt.com)
 
 ## 9. État actuel
 
