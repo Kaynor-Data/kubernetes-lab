@@ -1,0 +1,162 @@
+# Étape 2 — Configuration Réseau et DNS (Netplan)
+
+Ce document décrit la procédure détaillée pour configurer les adresses IP statiques, la passerelle et les serveurs DNS sur les trois nœuds du cluster Kubernetes sous Ubuntu Server 24.04 via Netplan.
+
+---
+
+## 1. Plan d'adressage IP
+
+| Machine | Nom d'hôte (`hostname`) | Interface réseau | Adresse IP statique | Passerelle | Serveurs DNS |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Control Plane** | `k8s-server-01` | `ens33` | `192.168.189.10/24` | `192.168.189.2` | `1.1.1.1`, `8.8.8.8` |
+| **Worker 01** | `k8s-server-02` | `ens33` | `192.168.189.11/24` | `192.168.189.2` | `1.1.1.1`, `8.8.8.8` |
+| **Worker 02** | `k8s-server-03` | `ens33` | `192.168.189.12/24` | `192.168.189.2` | `1.1.1.1`, `8.8.8.8` |
+
+---
+
+## 2. Nettoyage des fichiers de configuration parasites
+
+Pour éviter tout conflit lors de l'application des règles réseau, il est impératif d'assainir le répertoire `/etc/netplan/` et de ne conserver qu'un seul fichier de configuration actif (`50-cloud-init.yaml`).
+
+Exécutez la commande suivante sur chaque VM pour nettoyer les fichiers conflictuels :
+
+```bash
+sudo rm -f /etc/netplan/00-installer-config.yaml /etc/netplan/01netcfg.yml /etc/netplan/01-netcfg.yaml
+```
+
+---
+
+## 3. Configuration des fichiers Netplan
+
+### 3.1 Control Plane (`k8s-server-01`)
+
+Éditez le fichier `/etc/netplan/50-cloud-init.yaml` :
+
+```bash
+sudo nano /etc/netplan/50-cloud-init.yaml
+```
+
+Insérez la configuration suivante :
+
+```yaml
+network:
+  version: 2
+  ethernets:
+    ens33:
+      dhcp4: no
+      addresses:
+        - 192.168.189.10/24
+      routes:
+        - to: default
+          via: 192.168.189.2
+      nameservers:
+        addresses:
+          - 1.1.1.1
+          - 8.8.8.8
+```
+
+---
+
+### 3.2 Worker 01 (`k8s-server-02`)
+
+Éditez le fichier `/etc/netplan/50-cloud-init.yaml` :
+
+```bash
+sudo nano /etc/netplan/50-cloud-init.yaml
+```
+
+Insérez la configuration suivante :
+
+```yaml
+network:
+  version: 2
+  ethernets:
+    ens33:
+      dhcp4: no
+      addresses:
+        - 192.168.189.11/24
+      routes:
+        - to: default
+          via: 192.168.189.2
+      nameservers:
+        addresses:
+          - 1.1.1.1
+          - 8.8.8.8
+```
+
+---
+
+### 3.3 Worker 02 (`k8s-server-03`)
+
+Éditez le fichier `/etc/netplan/50-cloud-init.yaml` :
+
+```bash
+sudo nano /etc/netplan/50-cloud-init.yaml
+```
+
+Insérez la configuration suivante :
+
+```yaml
+network:
+  version: 2
+  ethernets:
+    ens33:
+      dhcp4: no
+      addresses:
+        - 192.168.189.12/24
+      routes:
+        - to: default
+          via: 192.168.189.2
+      nameservers:
+        addresses:
+          - 1.1.1.1
+          - 8.8.8.8
+```
+
+---
+
+## 4. Application des permissions et validation
+
+### 4.1 Sécuriser les permissions
+
+Netplan exige des permissions strictes sur les fichiers YAML (`600`). Sur chaque nœud, exécutez :
+
+```bash
+sudo chmod 600 /etc/netplan/50-cloud-init.yaml
+```
+
+### 4.2 Appliquer la configuration
+
+Appliquez les changements réseau :
+
+```bash
+sudo netplan apply
+```
+
+---
+
+## 5. Tests de validation et diagnostic
+
+### 5.1 Vérification de l'adresse IP locale
+
+Vérifiez que l'adresse IP statique est correctement attribuée à l'interface `ens33` :
+
+```bash
+ip -br addr
+```
+
+### 5.2 Test de connectivité réseau et DNS
+
+Depuis le Control Plane (`192.168.189.10`), validez la communication avec les Workers et Internet :
+
+```bash
+# Test de communication inter-nœuds
+ping -c 3 192.168.189.11
+ping -c 3 192.168.189.12
+
+# Test de résolution DNS et accès Internet
+ping -c 3 archive.ubuntu.com
+```
+
+> [!NOTE]
+> Si les pings vers les Workers réussissent et que la résolution DNS de `archive.ubuntu.com` fonctionne, l'étape réseau est entièrement validée.
