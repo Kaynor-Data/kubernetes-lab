@@ -3,7 +3,9 @@
 Projet de laboratoire pour déployer un cluster Kubernetes sur trois machines virtuelles Ubuntu Server 24.04 sous VMware, puis intégrer Rancher pour l'administration du cluster.
 
 
-Images : [`docs/images/Cluster-Manager-01.png`](docs/images/Cluster-Manager-01.png)
+![Architecture du cluster Kubernetes](docs/images/Cluster-Manager-01.png)
+
+<!-- Images : [`docs/images/Cluster-Manager-01.png`](docs/images/Cluster-Manager-01.png) -->
 
 
 > [!NOTE]
