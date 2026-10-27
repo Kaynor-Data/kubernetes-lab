@@ -222,7 +222,7 @@ finalisez en cliquant sur OK
 
 
 <!-- [`docs/01-vm-setup.md`](docs/01-vm-setup.md) -->
-[`docs/01-vm-setup.md`](docs/01-vm-setup.md)
+<!-- [`docs/01-vm-setup.md`](docs/01-vm-setup.md) -->
 
 ---
 
