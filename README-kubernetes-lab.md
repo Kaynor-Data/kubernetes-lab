@@ -138,21 +138,108 @@ Créer les fichiers référencés avant de considérer la documentation comme co
 
 ## 5. Parcours d'installation
 
-### Étape 1 — Préparer les VM
+### Étape 1 - Préparer les VM
 
 ![Preparer-les-vm](images/network-dns/preparer-les-VM/confiduration-des-vm.png)
 
-Documenter la version d'Ubuntu, le nombre de CPU, la mémoire, le disque, le mode réseau VMware, les noms d'hôtes et la méthode d'accès SSH.
 
-Vérifier également l'état du swap et préparer les paramètres système nécessaires à Kubernetes. Pour le déploiement standard retenu dans ce laboratoire, le swap doit être désactivé, sauf si une configuration compatible avec son utilisation est explicitement mise en place.
+#### 1.1 - Créer une machine virtuelle personnalisée avec VMware
 
-Documenter les modifications apportées à la configuration persistante afin qu'elles restent cohérentes après un redémarrage.
+![create-a-new-virtual-machine](images/network-dns/create-a-new-virtual-machine/confiduration-des-vm.png)
+
+#### 1.1.1 Choisir le type de machines virtuelle
+
+---
+
+Nous pouvons choisir entre deux types de machines virtuelles : 
+
+- « Typical » : Permet de créer une machine virtuelle simplement en quelques étapes mais sans entrer dans la configuration (choix du 
+système d’exploitation, nom de la machine virtuelle, lieu de stockage de la machine virtuelle et taille du disque dur virtuelle). 
+- « Custom » : Permet de créer une machine virtuelle avec une configuration personnalisée et précise. 
+
+Dans cet article, nous allons choisir le type de machines virtuelle « Custom » pour pouvoir entrer dans les détails de configuration et de 
+création de notre VM. 
+
+
+![create-a-new-virtual-machine](images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-02.png)
+
+
+choisissez I will install the operating system later pour plus de manoeuvre.
+
+![create-a-new-virtual-machine](images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-03.png)
+
+
+choisissez Linux si votre server ou Machine virtuelle a un iso Linux
+
+![create-a-new-virtual-machine](images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-04.png)
+
+
+configuirer la virtual machine name :
+
+![create-a-new-virtual-machine](images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-05.png)
+
+
+Choisissez la taille de la mémoire du disque dure
+
+![create-a-new-virtual-machine](images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-06.png)
+
+
+finisser et vous aller choisir l'iso
+
+![create-a-new-virtual-machine](images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-07.png)
+
+
+#### 1.1.2 choix de l'iso
+
+clique droit sur la Virtual Machine (VM) cliquer ensuite sur setting
+
+![choix-de-l-iso](images/choix-de-l-iso/iso.png)
+
+clique sur CD/DVD (SATA), 
+
+
+dans la partie de l'image a droite, cliquer sur Use ISO image file, Browser :
+
+le Browser cher moi est : D:\Download\software\linux\Ubuntu\Server\ISO 2 il pourais être diférrent chez vous, et le fichier est : 
+
+
+![choix-de-l-iso](images/choix-de-l-iso/iso-01.png)
+
+finalisez en cliquant sur OK
+
+![choix-de-l-iso](images/choix-de-l-iso/iso-03.png)
+
+
+> Documenter la version d'Ubuntu, le nombre de CPU, la mémoire, le disque, le mode réseau VMware, les noms d'hôtes et la méthode d'accès SSH.
+
+> Vérifier également l'état du swap et préparer les paramètres système nécessaires à Kubernetes. Pour le déploiement standard retenu dans ce laboratoire, le swap doit être désactivé, sauf si une configuration compatible avec son utilisation est explicitement mise en place.
+
+> Documenter les modifications apportées à la configuration persistante afin qu'elles restent cohérentes après un redémarrage.
+
+
 
 <!-- [`docs/01-vm-setup.md`](docs/01-vm-setup.md) -->
 [`docs/01-vm-setup.md`](docs/01-vm-setup.md)
 
+---
 
-### Étape 2 — Configurer le réseau et les noms
+### Étape 2 - Configuration du réseau et déploiement d'un cluster Kubernetes sur VMware Workstation - Ubuntu Server 24.04
+
+
+
+[`docs/configuration-du-reseau-et-deploiement-d-un-cluster-Kubernetes/VMware-Workstation/Ubuntu-Server-24.04/configuration-du-reseau-et-deploiement-d-un-cluster-Kubernetes-sur-VMware-Workstation-Ubuntu-Server-24.04.md`](docs/configuration-du-reseau-et-deploiement-d-un-cluster-Kubernetes/VMware-Workstation/Ubuntu-Server-24.04/configuration-du-reseau-et-deploiement-d-un-cluster-Kubernetes-sur-VMware-Workstation-Ubuntu-Server-24.04.md)
+
+
+configuration-du-reseau-et-deploiement-d-un-cluster-Kubernetes/
+
+1. Présentation du projet
+
+
+
+
+
+
+### Étape 2 - Configurer le réseau et les noms
 
 Cette étape consiste à préparer la communication entre les trois machines Ubuntu Server 24.04, à configurer leurs adresses IP statiques et à vérifier la résolution DNS avant l'installation de Kubernetes.
 
