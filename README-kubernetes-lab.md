@@ -142,6 +142,8 @@ Créer les fichiers référencés avant de considérer la documentation comme co
 
 Documenter la version d'Ubuntu, le nombre de CPU, la mémoire, le disque, le mode réseau VMware, les noms d'hôtes et la méthode d'accès SSH.
 
+![Préparation des VM](docs/images/network-dns/Préparer les VM/confiduration-des-vm.png)
+
 Vérifier également l'état du swap et préparer les paramètres système nécessaires à Kubernetes. Pour le déploiement standard retenu dans ce laboratoire, le swap doit être désactivé, sauf si une configuration compatible avec son utilisation est explicitement mise en place.
 
 Documenter les modifications apportées à la configuration persistante afin qu'elles restent cohérentes après un redémarrage.
