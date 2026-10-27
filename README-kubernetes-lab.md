@@ -423,13 +423,23 @@ Document container-runtime : [`docs/03-container-runtime.md`](docs/03-container-
 ### Étape 3 — Installer le runtime de conteneurs
 
 
-Pour ce laboratoire, containerd est le runtime de conteneurs retenu pour Kubernetes. Il doit être configuré avec une interface CRI compatible avec la version de Kubernetes installée.
+[`docs/preparation-systeme-et-installation-de-kubernetes/VMWare/kubernetes-lab-preparation-systeme-et-installation-de-kubernetes.md`](docs/preparation-systeme-et-installation-de-kubernetes/VMWare/kubernetes-lab-preparation-systeme-et-installation-de-kubernetes.md)
 
-Avant l'installation, préparer les modules noyau nécessaires, notamment overlay et br_netfilter selon la configuration retenue, puis vérifier les paramètres réseau du noyau, dont net.ipv4.ip_forward et les paramètres de traitement du trafic des ponts réseau.
 
-Vérifier également la configuration de systemd cgroups, le fonctionnement du service containerd et la disponibilité de son interface CRI.
+---
 
-Précision sur Docker : depuis Kubernetes 1.24, Docker Engine n'est plus pris en charge directement comme runtime natif par Kubernetes. Il n'est pas nécessaire d'installer Docker Engine sur les nœuds pour utiliser containerd. Docker peut être utilisé séparément ou avec un adaptateur CRI approprié.
+
+> [!NOTE]
+> Pour ce laboratoire, containerd est le runtime de conteneurs retenu pour Kubernetes. Il doit être configuré avec une interface CRI compatible avec la version de Kubernetes installée.
+
+> [!NOTE]
+> Avant l'installation, préparer les modules noyau nécessaires, notamment overlay et br_netfilter selon la configuration retenue, puis vérifier les paramètres réseau du noyau, dont net.ipv4.ip_forward et les paramètres de traitement du trafic des ponts réseau.
+
+> [!NOTE]
+> Vérifier également la configuration de systemd cgroups, le fonctionnement du service containerd et la disponibilité de son interface CRI.
+
+> [!NOTE]
+> Précision sur Docker : depuis Kubernetes 1.24, Docker Engine n'est plus pris en charge directement comme runtime natif par Kubernetes. Il n'est pas nécessaire d'installer Docker Engine sur les nœuds pour utiliser containerd. Docker peut être utilisé séparément ou avec un adaptateur CRI approprié.
 
 
 <!-- Pour un déploiement `kubeadm`, `containerd` est un choix courant de runtime compatible CRI. Suivre la documentation officielle pour préparer le système, configurer le runtime et installer les outils Kubernetes. Vérifier la compatibilité des versions avant d'exécuter les commandes. -->
