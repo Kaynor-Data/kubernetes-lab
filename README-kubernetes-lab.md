@@ -140,12 +140,12 @@ Créer les fichiers référencés avant de considérer la documentation comme co
 
 ### Étape 1 - Préparer les VM
 
-![Preparer-les-vm](images/network-dns/preparer-les-VM/confiduration-des-vm.png)
+![Preparer-les-vm](docs/images/network-dns/preparer-les-VM/confiduration-des-vm.png)
 
 
 #### 1.1 - Créer une machine virtuelle personnalisée avec VMware
 
-![create-a-new-virtual-machine](images/network-dns/create-a-new-virtual-machine/confiduration-des-vm.png)
+![create-a-new-virtual-machine](docs/images/network-dns/create-a-new-virtual-machine/confiduration-des-vm.png)
 
 #### 1.1.1 Choisir le type de machines virtuelle
 
