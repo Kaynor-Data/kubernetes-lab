@@ -161,39 +161,39 @@ Dans cet article, nous allons choisir le type de machines virtuelle « Custom »
 création de notre VM. 
 
 
-![create-a-new-virtual-machine](images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-02.png)
+![create-a-new-virtual-machine](docs/images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-02.png)
 
 
 choisissez I will install the operating system later pour plus de manoeuvre.
 
-![create-a-new-virtual-machine](images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-03.png)
+![create-a-new-virtual-machine](docs/images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-03.png)
 
 
 choisissez Linux si votre server ou Machine virtuelle a un iso Linux
 
-![create-a-new-virtual-machine](images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-04.png)
+![create-a-new-virtual-machine](docs/images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-04.png)
 
 
 configuirer la virtual machine name :
 
-![create-a-new-virtual-machine](images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-05.png)
+![create-a-new-virtual-machine](docs/images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-05.png)
 
 
 Choisissez la taille de la mémoire du disque dure
 
-![create-a-new-virtual-machine](images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-06.png)
+![create-a-new-virtual-machine](docs/images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-06.png)
 
 
 finisser et vous aller choisir l'iso
 
-![create-a-new-virtual-machine](images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-07.png)
+![create-a-new-virtual-machine](docs/images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-07.png)
 
 
 #### 1.1.2 choix de l'iso
 
 clique droit sur la Virtual Machine (VM) cliquer ensuite sur setting
 
-![choix-de-l-iso](images/choix-de-l-iso/iso.png)
+![choix-de-l-iso](docs/images/choix-de-l-iso/iso.png)
 
 clique sur CD/DVD (SATA), 
 
@@ -203,11 +203,11 @@ dans la partie de l'image a droite, cliquer sur Use ISO image file, Browser :
 le Browser cher moi est : D:\Download\software\linux\Ubuntu\Server\ISO 2 il pourais être diférrent chez vous, et le fichier est : 
 
 
-![choix-de-l-iso](images/choix-de-l-iso/iso-01.png)
+![choix-de-l-iso](docs/images/choix-de-l-iso/iso-01.png)
 
 finalisez en cliquant sur OK
 
-![choix-de-l-iso](images/choix-de-l-iso/iso-03.png)
+![choix-de-l-iso](docs/images/choix-de-l-iso/iso-03.png)
 
 
 > Documenter la version d'Ubuntu, le nombre de CPU, la mémoire, le disque, le mode réseau VMware, les noms d'hôtes et la méthode d'accès SSH.
