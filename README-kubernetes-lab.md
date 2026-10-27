@@ -234,7 +234,7 @@ finalisez en cliquant sur OK
 
 ---
 
-### Étape 2 - Configurer le réseau et les noms
+<!-- ### Étape 2 - Configurer le réseau et les noms
 
 Cette étape consiste à préparer la communication entre les trois machines Ubuntu Server 24.04, à configurer leurs adresses IP statiques et à vérifier la résolution DNS avant l'installation de Kubernetes.
 
@@ -360,7 +360,7 @@ Un échec de `ping` ne prouve pas à lui seul que le réseau est défaillant : c
 Document détaillé : [`docs/02-network-dns.md`](docs/02-network-dns.md)
 
 
-<!-- ### Étape 2 — Configurer le réseau et les noms
+### Étape 2 — Configurer le réseau et les noms
 
 Vérifier le réseau VMware avant d'attribuer les adresses. Ubuntu Server utilise généralement Netplan pour la configuration réseau. Identifier la passerelle et les DNS réels, sans reprendre des valeurs supposées.
 
@@ -380,11 +380,11 @@ hostnamectl
 sudo ufw status verbose
 ```
 
-Si le pare-feu est actif, identifier les règles nécessaires à l'API Kubernetes, aux communications entre les nœuds et au plugin CNI choisi. Ne pas désactiver systématiquement le pare-feu : adapter les règles aux composants effectivement installés et au réseau du laboratoire. -->
+Si le pare-feu est actif, identifier les règles nécessaires à l'API Kubernetes, aux communications entre les nœuds et au plugin CNI choisi. Ne pas désactiver systématiquement le pare-feu : adapter les règles aux composants effectivement installés et au réseau du laboratoire.
 
 
 
-<!-- [`docs/02-network-dns.md`](docs/02-network-dns.md) -->
+[`docs/02-network-dns.md`](docs/02-network-dns.md)
 
 
 
@@ -404,7 +404,7 @@ Ces captures permettent de documenter le mode réseau choisi (NAT, Bridged ou Ho
 Consulter la procédure détaillée : [`docs/02-network-dns.md`](docs/02-network-dns.md).
 
 
-<!-- ### Étape 3 — Installer le runtime de conteneurs
+### Étape 3 — Installer le runtime de conteneurs
 
 Pour ce laboratoire, containerd est le runtime de conteneurs retenu pour Kubernetes. Il doit être configuré avec une interface CRI compatible avec la version de Kubernetes installée.
 
@@ -414,8 +414,8 @@ Vérifier également la configuration de systemd cgroups, le fonctionnement du s
 
 Précision sur Docker : depuis Kubernetes 1.24, Docker Engine n'est plus pris en charge directement comme runtime natif par Kubernetes. Il n'est pas nécessaire d'installer Docker Engine sur les nœuds pour utiliser containerd. Docker peut être utilisé séparément ou avec un adaptateur CRI approprié.
 
-docs/03-container-runtime.md -->
-Document container-runtime : [`docs/03-container-runtime.md`](docs/03-container-runtime.md)
+docs/03-container-runtime.md
+Document container-runtime : [`docs/03-container-runtime.md`](docs/03-container-runtime.md) -->
 
 
 
