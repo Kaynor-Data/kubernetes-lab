@@ -229,15 +229,7 @@ finalisez en cliquant sur OK
 
 [`docs/configuration-du-reseau-et-deploiement-d-un-cluster-Kubernetes/VMware-Workstation/Ubuntu-Server-24.04/configuration-du-reseau-et-deploiement-d-un-cluster-Kubernetes-sur-VMware-Workstation-Ubuntu-Server-24.04.md`](docs/configuration-du-reseau-et-deploiement-d-un-cluster-Kubernetes/VMware-Workstation/Ubuntu-Server-24.04/configuration-du-reseau-et-deploiement-d-un-cluster-Kubernetes-sur-VMware-Workstation-Ubuntu-Server-24.04.md)
 
-
-configuration-du-reseau-et-deploiement-d-un-cluster-Kubernetes/
-
-1. Présentation du projet
-
-
-
-
-
+---
 
 ### Étape 2 - Configurer le réseau et les noms
 
