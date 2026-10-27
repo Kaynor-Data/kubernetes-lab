@@ -161,32 +161,32 @@ Dans cet article, nous allons choisir le type de machines virtuelle « Custom »
 création de notre VM. 
 
 
-![create-a-new-virtual-machine](docs/images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-02.png)
+![create-a-new-virtual-machine](docs/images/creation-de-vm/create-a-new-virtual-machine-02.png)
 
 
 choisissez I will install the operating system later pour plus de manoeuvre.
 
-![create-a-new-virtual-machine](docs/images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-03.png)
+![create-a-new-virtual-machine](docs/images/creation-de-vm/create-a-new-virtual-machine-03.png)
 
 
 choisissez Linux si votre server ou Machine virtuelle a un iso Linux
 
-![create-a-new-virtual-machine](docs/images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-04.png)
+![create-a-new-virtual-machine](docs/images/creation-de-vm/create-a-new-virtual-machine-04.png)
 
 
 configuirer la virtual machine name :
 
-![create-a-new-virtual-machine](docs/images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-05.png)
+![create-a-new-virtual-machine](docs/images/creation-de-vm/create-a-new-virtual-machine-05.png)
 
 
 Choisissez la taille de la mémoire du disque dure
 
-![create-a-new-virtual-machine](docs/images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-06.png)
+![create-a-new-virtual-machine](docs/images/creation-de-vm/create-a-new-virtual-machine-06.png)
 
 
 finisser et vous aller choisir l'iso
 
-![create-a-new-virtual-machine](docs/images/network-dns/create-a-new-virtual-machine/create-a-new-virtual-machine-07.png)
+![create-a-new-virtual-machine](docs/images/creation-de-vm/create-a-new-virtual-machine-07.png)
 
 
 #### 1.1.2 choix de l'iso
