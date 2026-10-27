@@ -426,9 +426,6 @@ Document container-runtime : [`docs/03-container-runtime.md`](docs/03-container-
 [`docs/preparation-systeme-et-installation-de-kubernetes/VMWare/kubernetes-lab-preparation-systeme-et-installation-de-kubernetes.md`](docs/preparation-systeme-et-installation-de-kubernetes/VMWare/kubernetes-lab-preparation-systeme-et-installation-de-kubernetes.md)
 
 
----
-
-
 > [!NOTE]
 > Pour ce laboratoire, containerd est le runtime de conteneurs retenu pour Kubernetes. Il doit être configuré avec une interface CRI compatible avec la version de Kubernetes installée.
 
