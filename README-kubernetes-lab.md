@@ -210,10 +210,13 @@ finalisez en cliquant sur OK
 ![choix-de-l-iso](docs/images/choix-de-l-iso/iso-03.png)
 
 
+> [!NOTE]
 > Documenter la version d'Ubuntu, le nombre de CPU, la mémoire, le disque, le mode réseau VMware, les noms d'hôtes et la méthode d'accès SSH.
 
+> [!NOTE]
 > Vérifier également l'état du swap et préparer les paramètres système nécessaires à Kubernetes. Pour le déploiement standard retenu dans ce laboratoire, le swap doit être désactivé, sauf si une configuration compatible avec son utilisation est explicitement mise en place.
 
+> [!NOTE]
 > Documenter les modifications apportées à la configuration persistante afin qu'elles restent cohérentes après un redémarrage.
 
 
