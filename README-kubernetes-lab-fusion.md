@@ -590,9 +590,9 @@ Si `sudo systemctl status containerd` répond `Unit containerd.service could not
 
 <table>
   <tr>
-    <td align="center">
+    <!-- <td align="center">
       <img src="docs/images/favicon/accroche.jpg" alt="Accroche Puzzle" width="350">
-    </td>
+    </td> -->
     <td align="center">
       <!-- <img src="docs/images/Kubernetes-01.png" alt="Kubernetes Installation Guide" width="350"> -->
       <img src="docs/kubernetes/kubernetes-installation-guide.jpg" alt="Kubernetes Installation Guide" width="350">
