@@ -662,9 +662,9 @@ Vérifier les versions installées :
 
 
 > [!TIP] En cas d'erreur liée à des versions installées avec Snap, les supprimer d'abord :  sudo snap remove kubelet kubectl kubeadm 
-```bash
-sudo snap remove kubelet kubectl kubeadm
-```
+> ```bash
+> sudo snap remove kubelet kubectl kubeadm
+> ```
 
 <details> 
   <summary>
