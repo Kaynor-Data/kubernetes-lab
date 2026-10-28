@@ -1,5 +1,5 @@
 
-# Étape 2 — Configuration réseau et DNS avec Netplan
+# Étape 2 - Configuration réseau et DNS avec Netplan
 
 ## 1. Objectif
 
@@ -11,7 +11,7 @@ Avant de modifier la configuration réseau d'Ubuntu, vérifier le mode réseau d
 
 Les captures suivantes servent à documenter la configuration réellement utilisée. Elles doivent provenir de ton propre environnement VMware.
 
-### 2.1 — Paramètres réseau de la machine virtuelle
+### 2.1 - Paramètres réseau de la machine virtuelle
 
 Dans les paramètres de chaque VM, ouvrir **Network Adapter** et vérifier :
 
@@ -20,7 +20,7 @@ Dans les paramètres de chaque VM, ouvrir **Network Adapter** et vérifier :
 - le mode réseau sélectionné : NAT, Bridged ou Host-only ;
 - que les trois VM utilisent un réseau permettant leur communication.
 
-**Capture 1 — Paramètres de la machine virtuelle**
+**Capture 1 - Paramètres de la machine virtuelle**
 
 ![Paramètres réseau de la machine virtuelle](images/network-dns/vm-settings/paramettre-de-la-machine-virtuelle.png)
 
@@ -28,7 +28,7 @@ Fichier attendu :
 
 `docs/images/network-dns/vm-settings/paramettre-de-la-machine-virtuelle.png`
 
-**Capture 2 — Adaptateur réseau et mode de connexion**
+**Capture 2 - Adaptateur réseau et mode de connexion**
 
 ![Adaptateur réseau VMware](images/network-dns/vm-settings/Virtual-Network-Adaptateur.png)
 
@@ -38,7 +38,7 @@ Fichier attendu :
 
 Le mode NAT est souvent pratique pour un laboratoire nécessitant un accès Internet et des communications entre les machines virtuelles. Le choix doit cependant correspondre à la configuration réelle de VMware.
 
-### 2.2 — Virtual Network Editor
+### 2.2 - Virtual Network Editor
 
 Dans VMware Workstation, ouvrir :
 
@@ -46,7 +46,7 @@ Dans VMware Workstation, ouvrir :
 
 Identifier le réseau virtuel utilisé par les trois VM.
 
-**Capture 3 — Vue d'ensemble du Virtual Network Editor**
+**Capture 3 - Vue d'ensemble du Virtual Network Editor**
 
 ![Virtual Network Editor](images/network-dns/virtual-network-editor/Virtual-Network-Editor.png)
 
@@ -61,7 +61,7 @@ Si les VM utilisent le réseau NAT, généralement nommé `VMnet8`, ouvrir ses p
 - l'état du service DHCP ;
 - la plage d'adresses distribuées par DHCP.
 
-**Capture 4 — Paramètres NAT de VMnet8**
+**Capture 4 - Paramètres NAT de VMnet8**
 
 ![Paramètres NAT de VMnet8](images/network-dns/virtual-network-editor/VMnet8-NAT-Settings.png)
 
@@ -69,7 +69,7 @@ Fichier attendu :
 
 `docs/images/network-dns/virtual-network-editor/VMnet8-NAT-Settings.png`
 
-**Capture 5 — Paramètres DHCP de VMnet8**
+**Capture 5 - Paramètres DHCP de VMnet8**
 
 ![Paramètres DHCP de VMnet8](images/network-dns/virtual-network-editor/VMnet8-DHCP-Settings.png)
 
@@ -124,15 +124,15 @@ Consigner les informations suivantes :
 
 Si `ens33` n'affiche pas d'adresse IP, vérifier que l'adaptateur est connecté dans VMware et que la VM utilise le bon réseau virtuel. Ne pas modifier Netplan avant d'avoir compris l'état actuel.
 
-### 4.1 — Captures de diagnostic Ubuntu
+### 4.1 - Captures de diagnostic Ubuntu
 
 Après avoir pris les captures VMware, compléter cette section avec les captures réelles de ton terminal Ubuntu.
 
-**Capture 6 — État du réseau avant modification**
+**Capture 6 - État du réseau avant modification**
 
 ![Diagnostic réseau Ubuntu avant modification](images/network-dns/ubuntu-network-before.png)
 
-**Capture 7 — Fichiers Netplan existants**
+**Capture 7 - Fichiers Netplan existants**
 
 ![Fichiers Netplan](images/network-dns/ubuntu-netplan-files.png)
 
@@ -196,7 +196,7 @@ La passerelle et les DNS doivent rester cohérents avec le réseau VMware réel.
 
 Ne remplace pas aveuglément le contenu d'un fichier existant. Examine sa configuration, sauvegarde-le, puis adapte les paramètres nécessaires en conservant les autres réglages utiles.
 
-**Capture 8 — Exemple de configuration Netplan**
+**Capture 8 - Exemple de configuration Netplan**
 
 ![Configuration Netplan avec adresse IP statique](images/network-dns/ubuntu-netplan-static-ip.png)
 
@@ -235,7 +235,7 @@ Si la machine perd sa connectivité, utiliser la console VMware pour diagnostiqu
 
 ## 8. Tests de validation
 
-### 8.1 — Vérifier l'adresse IP et la route
+### 8.1 - Vérifier l'adresse IP et la route
 
 ```bash
 ip -br address
@@ -244,7 +244,7 @@ ip route
 
 Vérifier que l'adresse IP appartient au sous-réseau prévu et que la route par défaut utilise la passerelle correcte.
 
-### 8.2 — Tester la communication entre les nœuds
+### 8.2 - Tester la communication entre les nœuds
 
 Depuis le Control Plane, une fois les adresses réellement configurées :
 
@@ -257,7 +257,7 @@ Si le sous-réseau réel est différent, remplacer ces adresses par celles attri
 
 Un échec de `ping` ne prouve pas à lui seul que le réseau est défaillant : certains équipements bloquent les requêtes ICMP. Vérifier également les adresses IP, les routes et les règles du pare-feu.
 
-### 8.3 — Tester la résolution DNS
+### 8.3 - Tester la résolution DNS
 
 ```bash
 getent hosts archive.ubuntu.com
@@ -265,7 +265,7 @@ getent hosts archive.ubuntu.com
 
 Une adresse IP renvoyée indique que la résolution du nom a fonctionné.
 
-### 8.4 — Vérifier l'accès réseau HTTPS
+### 8.4 - Vérifier l'accès réseau HTTPS
 
 Si la résolution DNS fonctionne, tester l'accès à une ressource HTTPS :
 
@@ -275,17 +275,17 @@ curl -I --max-time 10 https://archive.ubuntu.com/
 
 Si `curl` n'est pas installé, noter le résultat et installer l'outil lorsque l'accès aux dépôts sera disponible.
 
-### 8.5 — Captures après validation
+### 8.5 - Captures après validation
 
-**Capture 9 — Adresses IP et route après configuration**
+**Capture 9 - Adresses IP et route après configuration**
 
 ![Validation du réseau Ubuntu](images/network-dns/ubuntu-network-validation.png)
 
-**Capture 10 — Test DNS**
+**Capture 10 - Test DNS**
 
 ![Test de résolution DNS](images/network-dns/ubuntu-dns-test.png)
 
-**Capture 11 — Connectivité entre les nœuds**
+**Capture 11 - Connectivité entre les nœuds**
 
 ![Test de connectivité entre les nœuds Kubernetes](images/network-dns/kubernetes-nodes-connectivity.png)
 
@@ -337,7 +337,7 @@ Avant de publier les captures, vérifier qu'elles ne contiennent pas de mots de 
 
 
 
-<!-- # Étape 2 — Configuration réseau et DNS avec Netplan
+<!-- # Étape 2 - Configuration réseau et DNS avec Netplan
 
 ## 1. Objectif
 

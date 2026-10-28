@@ -1,4 +1,4 @@
-# Configuration du réseau et déploiement d'un cluster Kubernetes sur VMware Workstation — Ubuntu Server 24.04
+# Configuration du réseau et déploiement d'un cluster Kubernetes sur VMware Workstation - Ubuntu Server 24.04
 
 ## 1. Présentation du projet
 
@@ -95,7 +95,7 @@ Les commandes de ce guide sont exécutées depuis le terminal Ubuntu, sauf lorsq
 
 VMware Workstation propose plusieurs modes de connexion réseau. Le choix dépend de l'architecture recherchée.
 
-### Option 1 — NAT
+### Option 1 - NAT
 
 Avec le mode NAT, les machines virtuelles utilisent le réseau de l'hôte pour accéder au réseau externe.
 
@@ -110,7 +110,7 @@ Avec le mode NAT, les machines virtuelles utilisent le réseau de l'hôte pour a
 
 **Utilisation recommandée :** laboratoire local lorsque l'on souhaite conserver une configuration réseau relativement simple.
 
-### Option 2 — Bridged
+### Option 2 - Bridged
 
 Avec le mode Bridged, la carte réseau virtuelle est connectée au réseau physique de l'ordinateur hôte.
 
@@ -128,7 +128,7 @@ Les machines virtuelles peuvent obtenir des adresses IP sur le même réseau loc
 
 **Utilisation recommandée :** laboratoire dont les serveurs doivent être accessibles sur le réseau local.
 
-### Option 3 — Host-only
+### Option 3 - Host-only
 
 Le mode Host-only crée un réseau privé entre l'ordinateur hôte et les machines virtuelles connectées à ce réseau.
 
@@ -889,13 +889,13 @@ Examiner ensuite le runtime de conteneurs, les journaux des composants concerné
 
 ### Ubuntu Server et Netplan
 
-- [Documentation Ubuntu — Configuration réseau](https://ubuntu.com/server/docs/configuring-networks/)
-- [Documentation Ubuntu — Netplan](https://ubuntu.com/server/docs/about-netplan/)
+- [Documentation Ubuntu - Configuration réseau](https://ubuntu.com/server/docs/configuring-networks/)
+- [Documentation Ubuntu - Netplan](https://ubuntu.com/server/docs/about-netplan/)
 
 ### Kubernetes
 
-- [Documentation Kubernetes — Installation de kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/)
-- [Documentation Kubernetes — Création d'un cluster avec kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/)
+- [Documentation Kubernetes - Installation de kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/)
+- [Documentation Kubernetes - Création d'un cluster avec kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/)
 
 ### VMware
 

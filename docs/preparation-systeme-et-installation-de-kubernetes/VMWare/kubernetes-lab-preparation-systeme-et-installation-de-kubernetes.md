@@ -1,4 +1,4 @@
-# Kubernetes Lab — Préparation système et installation de Kubernetes
+# Kubernetes Lab - Préparation système et installation de Kubernetes
 
 ## 1. Présentation
 
@@ -84,7 +84,7 @@ Un échec du ping ne signifie pas nécessairement que toute communication est im
 
 ## 4. Vérifier et configurer le pare-feu
 
-### 4.1. Option A — UFW désactivé
+### 4.1. Option A - UFW désactivé
 
 Vérifier l'état :
 
@@ -102,7 +102,7 @@ Cela ne garantit pas l'absence d'autres règles de pare-feu : les règles `nftab
 
 Ne pas activer ou désactiver UFW sans comprendre les conséquences, notamment si la machine est accessible depuis un réseau physique ou par SSH.
 
-### 4.2. Option B — UFW activé avec des règles adaptées
+### 4.2. Option B - UFW activé avec des règles adaptées
 
 Avant d'activer UFW, vérifier les règles existantes et, si SSH est utilisé, autoriser l'accès SSH depuis le réseau d'administration.
 
@@ -139,7 +139,7 @@ sudo ufw status numbered
 
 N'activer UFW qu'après avoir vérifié que les règles permettent toujours l'accès d'administration et les communications nécessaires au cluster.
 
-### 4.3. Option C — Examiner directement les règles système
+### 4.3. Option C - Examiner directement les règles système
 
 Pour examiner les règles nftables :
 
@@ -172,7 +172,7 @@ free -h
 
 Si `swapon --show` ne retourne aucune ligne, aucun espace swap n'est actuellement actif.
 
-### 5.2. Option A — Désactivation temporaire
+### 5.2. Option A - Désactivation temporaire
 
 Pour désactiver les espaces swap actifs jusqu'au prochain redémarrage :
 
@@ -191,7 +191,7 @@ free -h
 
 **Limite :** le swap peut être réactivé au redémarrage si la configuration persistante n'est pas modifiée.
 
-### 5.3. Option B — Désactivation persistante dans `/etc/fstab`
+### 5.3. Option B - Désactivation persistante dans `/etc/fstab`
 
 Examiner d'abord le fichier :
 
@@ -231,7 +231,7 @@ swapon --show
 
 **Limite :** cette opération ne couvre pas nécessairement tous les mécanismes d'activation possibles. Il faut contrôler la configuration réellement utilisée par la machine.
 
-### 5.4. Option C — Vérifier une configuration d'activation supplémentaire
+### 5.4. Option C - Vérifier une configuration d'activation supplémentaire
 
 Si le swap réapparaît après un redémarrage, examiner les services et configurations qui peuvent l'activer, notamment les unités systemd liées au swap :
 
@@ -341,7 +341,7 @@ Ces paramètres sont une configuration courante. Les besoins IPv6 et les paramè
 
 Kubernetes a besoin d'un runtime CRI pour exécuter les conteneurs.
 
-### 7.1. Option A — Installer containerd depuis les dépôts Ubuntu
+### 7.1. Option A - Installer containerd depuis les dépôts Ubuntu
 
 Examiner les paquets disponibles :
 
@@ -367,7 +367,7 @@ containerd --version
 sudo systemctl status containerd --no-pager
 ```
 
-### 7.2. Option B — Installer containerd depuis une source maintenue par son éditeur
+### 7.2. Option B - Installer containerd depuis une source maintenue par son éditeur
 
 Une autre possibilité consiste à utiliser les paquets officiels du projet containerd ou ceux d'une distribution maintenue par son éditeur.
 
@@ -630,9 +630,9 @@ Examiner le runtime, le CNI et les événements Kubernetes.
 
 - Ubuntu Server : https://ubuntu.com/server/docs
 - Netplan : https://netplan.readthedocs.io/
-- Kubernetes — Installation de kubeadm : https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
-- Kubernetes — Création d'un cluster kubeadm : https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
-- Kubernetes — Ports et protocoles : https://kubernetes.io/docs/reference/networking/ports-and-protocols/
+- Kubernetes - Installation de kubeadm : https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+- Kubernetes - Création d'un cluster kubeadm : https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
+- Kubernetes - Ports et protocoles : https://kubernetes.io/docs/reference/networking/ports-and-protocols/
 - containerd : https://containerd.io/
 - Calico : https://docs.tigera.io/calico/latest
 - Flannel : https://github.com/flannel-io/flannel
