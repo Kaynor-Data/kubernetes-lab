@@ -582,12 +582,10 @@ Si `sudo systemctl status containerd` répond `Unit containerd.service could not
 
 <img src="docs/kubernetes/kubernetes-installation-guide.jpg" alt="Kubernetes Installation Guide" width="1050">
 
-<h3> 
-  <strong>
-    <img src="docs/images/favicon/accroche.jpg" alt="Puzzle" width="24" style="vertical-align: middle; margin-right: 8;">
-    Kubernetes Installation Guide (2026 Update)
-  </strong>
-</h3>
+<h2 style="display: flex; align-items: center; gap: 12px;"> 
+    <img src="docs/images/favicon/accroche.jpg" alt="Puzzle" width="36" style="vertical-align: middle;">
+    <span style="font-size: 28px; font-weight: bold;">Kubernetes Installation Guide (2026 Update)</span>
+</h2>
 
 ---
 
