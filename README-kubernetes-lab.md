@@ -71,7 +71,7 @@ Sur les 3 nœuds du cluster, le fichier `/etc/hosts` a été configuré comme su
 
 Remplacez les sections **2**, **7**, **8**, **9**, **10** et **18** par le contenu réel :
 
-```markdown
+
 # Configuration du réseau et déploiement d'un cluster Kubernetes sur VMware Workstation — Ubuntu Server 24.04
 
 ## 2. Architecture du cluster (Réelle & Validée)
