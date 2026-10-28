@@ -2,8 +2,8 @@
 
 Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 Workers) sur trois machines virtuelles Ubuntu Server 24.04 LTS sous VMware Workstation avec le réseau NAT (`VMnet8`), puis intégrer Rancher pour l'administration du cluster.
 
-<!-- > [!NOTE]
-> Les blocs **« Pour aller plus loin »** ne sont pas nécessaires pour réaliser le laboratoire. Ils conservent les méthodes alternatives, les diagnostics détaillés et les explications destinés aux prochains stagiaires qui voudront approfondir. -->
+> [!NOTE]
+> Les blocs **« Pour aller plus loin »** ne sont pas nécessaires pour réaliser le laboratoire. Ils conservent les méthodes alternatives, les diagnostics détaillés et les explications destinés aux prochains intervenants qui voudront approfondir.
 
 ---
 
@@ -35,7 +35,6 @@ Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 W
 | `Ubuntu-worker-01` | **Worker 01** | `k8s-worker-01` | `ens33` | `192.168.189.11/24` | `192.168.189.2` | `1.1.1.1`, `8.8.8.8` |
 | `Ubuntu-worker-03` | **Worker 02** | `k8s-worker-02` | `ens33` | `192.168.189.12/24` | `192.168.189.2` | `1.1.1.1`, `8.8.8.8` |
 
-
 ### Spécifications de l'environnement
 
 - **Hyperviseur :** VMware Workstation (réseau NAT `VMnet8`)
@@ -51,6 +50,22 @@ Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 W
 
 > [!IMPORTANT]
 > Le réseau des pods (`10.244.0.0/16`) ne doit jamais chevaucher le réseau des VM (`192.168.189.0/24`).
+
+<details>
+<summary><strong>Pour aller plus loin - Rôle du Control Plane et des Workers</strong></summary>
+
+**Control Plane** : il gère le cluster. Il regroupe quatre composants principaux :
+
+- **API Server** : point d'entrée du cluster, toutes les commandes `kubectl` passent par lui ;
+- **Scheduler** : choisit le nœud sur lequel chaque pod sera exécuté ;
+- **Controller Manager** : surveille l'état du cluster et le ramène à l'état voulu ;
+- **etcd** : base de données qui conserve l'état du cluster.
+
+**Workers** : ils exécutent les applications conteneurisées sous forme de pods, et reçoivent leurs instructions du Control Plane.
+
+Chaque nœud doit posséder une adresse IP unique et stable, un nom d'hôte unique et une connectivité réseau fonctionnelle vers les autres nœuds.
+
+</details>
 
 ---
 
@@ -89,8 +104,6 @@ Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 W
 
 ---
 
----
-
 ## 5. Structure de la documentation
 
 ```text
@@ -106,6 +119,11 @@ kubernetes-lab/
     ├── 05-rancher.md
     ├── 06-validation.md
     ├── 07-troubleshooting.md
+    ├── kubernetes/
+    │   └── kubernetes-installation-guide.jpg
+    ├── mobaxterm/
+    │   ├── ssh/
+    │   └── k8s-control-plane/
     └── images/
         ├── Google-Cloud-Platform-01.png
         ├── Kubernetes-01.png
@@ -113,6 +131,7 @@ kubernetes-lab/
         ├── Cluster-Manager-01.png
         ├── Rancher-01.png
         ├── Rancher-workflow-01.png
+        ├── favicon/
         ├── creation-de-vm/
         ├── choix-de-l-iso/
         └── network-dns/
@@ -198,6 +217,8 @@ Dans **Settings > Network Adapter**, choisir **NAT: Used to share the host's IP 
 > [!NOTE]
 > Documenter la version d'Ubuntu, le nombre de CPU, la mémoire, le disque, le mode réseau VMware, les noms d'hôtes et la méthode d'accès SSH.
 
+##### 1.5.1 - Cloner une VM et VM absente de l'interface
+
 <details>
 <summary><strong>Pour aller plus loin - Cloner une VM au lieu de réinstaller</strong></summary>
 
@@ -216,15 +237,93 @@ Le `machine-id` doit être différent sur chaque nœud, sinon Kubernetes et le r
 
 </details>
 
-> [!DANGE]
-<details>
-<summary> cependant, dans certaines situation, elle peuvent ne pas afficher, sur l'interface mais elle est créer pour autant, dans ce cas allez dans<strong> Documents-Virtual Machines</strong> et supprimer manuellemnt les éléments créer qui ne marche pas, cars supprimer sur VMWare seul ne suffit pas, les fichiers reste présent</summary>
-</details>
+> [!WARNING]
+> Dans certaines situations, une VM peut être créée sans apparaître dans l'interface VMware. Dans ce cas, ouvrir **Documents > Virtual Machines** et supprimer manuellement les dossiers des VM qui ne fonctionnent pas : supprimer une VM depuis VMware seul ne suffit pas, ses fichiers restent présents sur le disque.
+
+Document détaillé : [`docs/01-vm-setup.md`](docs/01-vm-setup.md)
+
+##### 1.5.2 - Installer OpenSSH server
+
+OpenSSH server permet de se connecter aux VM à distance, par exemple avec MobaXterm.
+
+**Pendant l'installation d'Ubuntu** : sur l'écran *SSH configuration*, cocher **Install OpenSSH server** avec la barre d'espace.
+
+**Si la VM est déjà installée**, exécuter sur chaque VM :
+
+```bash
+sudo apt update
+sudo apt install -y openssh-server
+sudo systemctl enable --now ssh
+sudo systemctl status ssh --no-pager
+```
+
+Le service doit afficher `active (running)`. Si le pare-feu UFW est actif, autoriser aussi le port 22 :
+
+```bash
+sudo ufw allow ssh
+```
+
+##### 1.5.3 - Présentation de MobaXterm
+
+**MobaXterm** est un client de terminal pour Windows qui permet de piloter les machines Linux à distance. Il regroupe dans une seule application le SSH, le transfert de fichiers (SFTP), l'affichage graphique à distance (X11) et d'autres protocoles (RDP, VNC, Telnet). La version Home Edition est gratuite et suffit pour ce laboratoire.
+
+##### 1.5.3.1 - Comment il fonctionne
+
+MobaXterm se connecte au serveur OpenSSH installé sur la VM (étape 1.5.2) en utilisant le protocole **SSH** (*Secure Shell*) sur le port `22`. Il ouvre un canal chiffré entre Windows et la VM, s'authentifie avec le nom d'utilisateur et le mot de passe (ou une clé SSH), puis affiche dans un onglet le terminal de la VM : chaque commande tapée est exécutée sur la VM, pas sur Windows. En parallèle, un panneau latéral ouvre une session SFTP sur la même connexion et affiche les fichiers de la VM, ce qui permet de les glisser-déposer depuis Windows.
+
+##### 1.5.3.2 - Pourquoi il est important pour ce laboratoire
+
+- **Confort de travail** : la console VMware ne permet pas toujours le copier-coller, gère mal le clavier et le défilement. Avec MobaXterm, les longues commandes (installation de `containerd`, `kubeadm join`…) se collent sans erreur de frappe.
+- **Trois machines en parallèle** : une session mémorisée par VM, chacune dans son onglet, et un accès immédiat sans repasser par VMware.
+- **MultiExec** : cette fonction envoie la même commande aux trois nœuds en une seule fois, utile pour les étapes identiques sur tout le cluster (désactivation du swap, modules noyau, installation de `containerd`, `kubeadm`, `kubelet`).
+- **Transfert de fichiers** : le panneau SFTP facilite l'échange de fichiers de configuration, de manifestes YAML ou du `kubeconfig` entre Windows et les VM.
+- **Pratique réaliste** : en entreprise, les serveurs n'ont ni écran ni clavier et s'administrent presque toujours à distance en SSH. Ce laboratoire reproduit ce mode de travail.
+
+> [!NOTE]
+> MobaXterm n'est pas obligatoire : le client `ssh` intégré à Windows (PowerShell), Windows Terminal ou PuTTY permettent la même connexion. MobaXterm est retenu ici pour ses sessions enregistrées, son panneau SFTP et MultiExec.
+
+> [!WARNING]
+> Un mot de passe simple comme celui du laboratoire ne convient qu'à un environnement de test. Pour un usage réel, utiliser des clés SSH et désactiver l'authentification par mot de passe. Ne publie jamais dans le dépôt de capture montrant un mot de passe, une clé privée ou un jeton.
+
+##### 1.5.3.3 - Connexion avec MobaXterm
+
+Ouvrir **Session > SSH**.
+
+![mobaxterm](docs/mobaxterm/ssh/ssh.png)
+
+Renseigner une session par machine virtuelle :
+
+| VM | Nom d'hôte | Remote host | Specify username | Port |
+|---|---|---|---|---|
+| Control Plane | `k8s-control-plane` | `192.168.189.10` | `ubuntu-server-01` | `22` |
+| Worker 01 | `k8s-worker-01` | `192.168.189.11` | `ubuntu-worker-01` | `22` |
+| Worker 02 | `k8s-worker-02` | `192.168.189.12` | `ubuntu-worker-02` | `22` |
+
+> [!IMPORTANT]
+> Le **Specify username** est le compte créé à l'installation d'Ubuntu, pas le nom d'hôte. Changer le nom d'hôte avec `hostnamectl` ne renomme pas le compte : saisir `k8s-control-plane` comme nom d'utilisateur provoque un `Access denied`.
+
+Pour le Control Plane, cocher **Specify username** et saisir `ubuntu-server-01`, avec le port `22`.
+
+![k8s-control-plane](docs/mobaxterm/k8s-control-plane/k8s-control-plane.png)
+
+Cliquer sur **OK**. MobaXterm propose alors de définir un mot de passe maître pour protéger les sessions enregistrées.
+
+![k8s-control-plane](docs/mobaxterm/k8s-control-plane/k8s-control-plane-02.png)
+
+Cliquer sur **Cancel** : pour un laboratoire de test, ce mot de passe n'est pas nécessaire. Pour un projet sensible, il est recommandé de le définir et de le confirmer.
+
+Saisir ensuite le mot de passe de l'utilisateur de la VM. La session s'ouvre dans un onglet :
+
+![k8s-control-plane](docs/mobaxterm/k8s-control-plane/k8s-control-plane-03.png)
+
+La procédure est identique pour **k8s-worker-01** (`192.168.189.11`) et **k8s-worker-02** (`192.168.189.12`), avec les valeurs du tableau.
+
+> [!NOTE]
+> Les trois machines virtuelles sont maintenant connectées et manipulables depuis MobaXterm.
 
 ---
 
 ### Étape 2 - Configurer le réseau (Netplan) et les noms
-
 
 #### 2.0 - Plan d'adressage validé (remplace le plan initial)
 
@@ -246,7 +345,12 @@ Dans **Edit > Virtual Network Editor**, sélectionner `VMnet8` :
 - **NAT Settings** : passerelle `192.168.189.2` ;
 - **DHCP Settings** : plage `192.168.189.128` à `192.168.189.254`.
 
-Les captures de référence sont conservées dans `docs/images/network-dns/`.
+Les captures de référence sont conservées dans [`docs/images/network-dns/`](docs/images/network-dns/) :
+
+- [Paramètres réseau de la machine virtuelle](docs/images/network-dns/vm-settings/)
+- [Virtual Network Editor](docs/images/network-dns/virtual-network-editor/)
+
+Elles documentent le mode réseau choisi, le sous-réseau, la passerelle NAT et la plage DHCP.
 
 <details>
 <summary><strong>Pour aller plus loin - Comprendre les modes réseau VMware</strong></summary>
@@ -261,6 +365,18 @@ Les captures de référence sont conservées dans `docs/images/network-dns/`.
 NAT est le meilleur choix pour ce lab : les adresses des VM restent indépendantes de la box et du Wi-Fi, ce qui est stable pour un cluster. Un réseau Custom n'est utile que pour isoler un cluster ou séparer plusieurs labs.
 
 Sur l'ancien Ubuntu Desktop, le réseau marchait car le **DHCP** de VMware fournissait IP, passerelle et DNS automatiquement. En IP statique, rien n'est fourni : la passerelle et les DNS doivent être écrits dans Netplan (c'est le cas ci-dessous).
+
+**Comparaison des trois modes**
+
+| Critère | NAT | Bridged | Host-only |
+|---|---|---|---|
+| Communication entre les VM | Oui | Oui | Oui |
+| Accès à Internet | Généralement oui | Selon le réseau physique | Non, généralement |
+| Accès depuis le réseau local | Configuration supplémentaire possible | Oui, si le réseau l'autorise | Non, généralement |
+| Isolation du réseau physique | Partielle | Faible | Forte |
+
+> [!NOTE]
+> Choisir un mode réseau dans VMware ne configure pas automatiquement une adresse IP statique dans Ubuntu : ce sont deux opérations distinctes. L'adresse statique se définit dans Netplan (étape 2.3).
 
 </details>
 
@@ -279,6 +395,17 @@ sudo ufw status verbose
 ```
 
 Si le pare-feu UFW est actif, identifier les règles nécessaires à l'API Kubernetes, aux échanges entre nœuds et au CNI. Ne pas le désactiver systématiquement.
+
+Informations à relever sur chaque machine avant de modifier Netplan :
+
+| Information | Commande |
+|---|---|
+| Nom d'hôte | `hostname` |
+| Interfaces réseau | `ip -br link` |
+| Adresses IP | `ip -br address` |
+| Passerelle | `ip route` |
+| Serveurs DNS | `resolvectl status` |
+| Fichiers Netplan | `ls -l /etc/netplan/` |
 
 #### 2.3 - Configuration Netplan par machine
 
@@ -322,6 +449,28 @@ ip route
 ```
 
 `netplan generate` vérifie la syntaxe avant l'application. Le `chmod 600` supprime l'avertissement « Permissions … are too open ».
+
+> [!WARNING]
+> Applique `netplan apply` avec un moyen de récupérer la console en cas de perte du réseau. En SSH, la connexion se coupe au changement d'adresse IP : privilégier la console VMware, qui permet de corriger le fichier.
+
+<details>
+<summary><strong>Pour aller plus loin - Tester avec `netplan try` et sauvegarder tout le dossier</strong></summary>
+
+Pour sauvegarder tous les fichiers Netplan dans un dossier daté :
+
+```bash
+sudo cp -a /etc/netplan "/root/netplan-backup-$(date +%F-%H%M%S)"
+```
+
+`netplan try` applique la configuration puis **annule automatiquement** les changements au bout de 120 secondes si on ne les confirme pas avec Entrée. C'est la méthode la plus sûre quand une erreur risque de couper l'accès à la machine :
+
+```bash
+sudo netplan try
+```
+
+Les exemples d'autres guides ajoutent la ligne `renderer: networkd` sous `version: 2`. Sur Ubuntu Server elle est facultative, car c'est le moteur utilisé par défaut.
+
+</details>
 
 <details>
 <summary><strong>Pour aller plus loin - Empêcher cloud-init de réécrire le réseau</strong></summary>
@@ -372,6 +521,8 @@ sudo apt update
 > [!NOTE]
 > Un `ping` vers l'extérieur peut échouer alors qu'Internet fonctionne (ICMP filtré par le NAT, un pare-feu ou un VPN). Le test fiable est `sudo apt update` ou `curl -I https://archive.ubuntu.com`, avec la résolution DNS (`getent hosts`).
 
+Documenter les résultats observés avant de passer à l'installation de `containerd` et de Kubernetes.
+
 <details>
 <summary><strong>Pour aller plus loin - Interpréter les résultats de ping</strong></summary>
 
@@ -384,20 +535,34 @@ sudo apt update
 
 </details>
 
+Document détaillé : [`docs/02-network-dns.md`](docs/02-network-dns.md)
+
 ---
 
 ### Étape 3 - Préparer le système (prérequis Kubernetes)
 
 À réaliser sur les trois nœuds.
 
-**1. Désactiver le swap**
+**1. Vérifier les ressources et l'unicité des machines**
+
+```bash
+nproc
+free -h
+df -h
+ip link
+sudo cat /sys/class/dmi/id/product_uuid
+```
+
+Ces commandes affichent le nombre de processeurs, la mémoire, l'espace disque, les adresses MAC et l'identifiant système de la machine. Selon la documentation officielle de `kubeadm`, chaque nœud doit disposer d'au moins 2 Go de RAM, et le Control Plane d'au moins 2 CPU. Les noms d'hôte, adresses MAC et `product_uuid` doivent être **différents** sur les trois machines, ce qui compte surtout si une VM a été clonée.
+
+**2. Désactiver le swap**
 
 ```bash
 sudo swapoff -a
 sudo sed -i '/ swap / s/^/#/' /etc/fstab
 ```
 
-**2. Charger les modules noyau `overlay` et `br_netfilter`**
+**3. Charger les modules noyau `overlay` et `br_netfilter`**
 
 ```bash
 sudo tee /etc/modules-load.d/k8s.conf <<EOF
@@ -409,7 +574,7 @@ sudo modprobe overlay
 sudo modprobe br_netfilter
 ```
 
-**3. Paramètres `sysctl`**
+**4. Paramètres `sysctl`**
 
 ```bash
 sudo tee /etc/sysctl.d/k8s.conf <<EOF
@@ -421,7 +586,7 @@ EOF
 sudo sysctl --system
 ```
 
-**4. Vérifier**
+**5. Vérifier**
 
 ```bash
 free -h
@@ -431,6 +596,80 @@ sysctl net.ipv4.ip_forward
 
 > [!NOTE]
 > Documenter les modifications persistantes (`/etc/fstab`, `/etc/modules-load.d/`, `/etc/sysctl.d/`) pour qu'elles restent cohérentes après un redémarrage.
+
+<details>
+<summary><strong>Pour aller plus loin - Swap en détail</strong></summary>
+
+Examiner l'état actuel sur les trois machines :
+
+```bash
+swapon --show
+free -h
+```
+
+Si `swapon --show` ne retourne aucune ligne, aucun swap n'est actif.
+
+- **Désactivation temporaire** : `sudo swapoff -a` désactive le swap jusqu'au prochain redémarrage.
+- **Désactivation persistante** : commenter l'entrée swap dans `/etc/fstab`, c'est ce que fait la commande `sed` de l'étape 3.
+
+Pour le faire à la main, sauvegarder puis modifier le fichier :
+
+```bash
+cat /etc/fstab
+sudo cp -a /etc/fstab /etc/fstab.backup
+sudo nano /etc/fstab
+```
+
+Ajouter `#` au début de la seule ligne swap, sans toucher aux montages nécessaires au démarrage. Si le swap réapparaît après un redémarrage, chercher une unité `systemd` qui l'active :
+
+```bash
+systemctl list-units --type=swap
+systemctl list-unit-files --type=swap
+```
+
+Ne désactiver une unité qu'après avoir identifié son rôle. Validation finale : `swapon --show` ne doit afficher aucune ligne.
+
+</details>
+
+<details>
+<summary><strong>Pour aller plus loin - Pare-feu et ports Kubernetes</strong></summary>
+
+Vérifier l'état d'UFW :
+
+```bash
+sudo ufw status verbose
+```
+
+`Status: inactive` signifie qu'UFW n'applique aucune règle, mais d'autres règles (`nftables`, hôte, réseau) peuvent exister. Pour les examiner :
+
+```bash
+sudo nft list ruleset
+sudo ss -lntup
+```
+
+Si UFW est activé, autoriser d'abord l'accès SSH depuis le réseau du laboratoire, **avant** d'activer le pare-feu :
+
+```bash
+sudo ufw allow from 192.168.189.0/24 to any port 22 proto tcp
+sudo ufw status numbered
+```
+
+Ports principaux utilisés par Kubernetes :
+
+| Port ou plage | Protocole | Usage | Nœuds concernés |
+|---|---|---|---|
+| 6443 | TCP | API Server | Control Plane |
+| 2379-2380 | TCP | etcd | Control Plane |
+| 10250 | TCP | kubelet | Tous les nœuds |
+| 10257 | TCP | Controller Manager | Control Plane |
+| 10259 | TCP | Scheduler | Control Plane |
+| 30000-32767 | TCP/UDP selon le service | NodePort, uniquement si utilisé | Workers |
+| 8472 | UDP | Réseau des pods de Flannel (VXLAN) | Tous les nœuds |
+
+> [!NOTE]
+> Les règles du Control Plane et des Workers ne sont pas identiques, et les ports du CNI dépendent du plugin choisi : les vérifier dans sa documentation. Ne pas ouvrir ces ports à tous les réseaux, restreindre les sources au sous-réseau `192.168.189.0/24`.
+
+</details>
 
 ---
 
@@ -449,6 +688,7 @@ sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/conf
 sudo systemctl restart containerd
 sudo systemctl enable containerd
 sudo systemctl status containerd --no-pager
+ls -l /run/containerd/containerd.sock   # l'interface CRI doit être disponible
 ```
 
 > [!NOTE]
@@ -463,20 +703,91 @@ Si `sudo systemctl status containerd` répond `Unit containerd.service could not
 
 </details>
 
+<details>
+<summary><strong>Pour aller plus loin - Vérifier et valider `containerd`</strong></summary>
+
+Avant l'installation, voir quelle version les dépôts Ubuntu proposent :
+
+```bash
+apt-cache policy containerd
+```
+
+Après l'installation et la configuration, valider :
+
+```bash
+containerd --version
+sudo systemctl is-active containerd
+grep SystemdCgroup /etc/containerd/config.toml
+```
+
+Le service doit répondre `active` et la ligne doit afficher `SystemdCgroup = true`.
+
+La structure du fichier `config.toml` diffère entre `containerd` 1.x et 2.x : la ligne `SystemdCgroup` se trouve dans la section du runtime `runc`, sous une arborescence qui change selon la version. Ne pas la copier à un emplacement arbitraire : modifier la ligne existante, comme le fait la commande `sed`.
+
+`containerd` peut aussi être installé depuis les paquets maintenus par son éditeur plutôt que depuis les dépôts Ubuntu. Dans ce cas, vérifier la compatibilité avec Ubuntu 24.04 et éviter de mélanger plusieurs sources de paquets.
+
+</details>
+
 ---
 
 ### Étape 5 - Installer les outils Kubernetes (`kubeadm`, `kubelet`, `kubectl`)
 
-À réaliser sur les trois nœuds. Choisir la version de Kubernetes et remplacer `v1.30` ci-dessous par la version souhaitée.
+<img src="docs/kubernetes/kubernetes-installation-guide.jpg" alt="Guide d'installation de Kubernetes" width="1050">
+
+<h2 style="display: flex; align-items: center; gap: 12px;">
+  <img src="docs/images/favicon/accroche.jpg" alt="Puzzle" width="36" style="vertical-align: middle;">
+  <span style="font-size: 28px; font-weight: bold;">Guide d'installation de Kubernetes (mise à jour 2026)</span>
+</h2>
+
+---
+
+À réaliser sur les trois nœuds. Choisir la version de Kubernetes et remplacer `v1.30` dans les commandes ci-dessous par la version souhaitée. Utiliser la **même branche mineure** de Kubernetes sur les trois machines.
 
 > [!WARNING]
 > Vérifier sur la documentation officielle quelle version est encore supportée avant d'installer : `v1.30` est donnée ici à titre d'exemple et peut ne plus être maintenue. Les versions de `kubeadm`, `kubelet` et `kubectl` doivent être compatibles entre elles.
 
+> [!NOTE]
+> L'ancien dépôt `apt.kubernetes.io` (`kubernetes-xenial`) est **obsolète et supprimé**. Il faut utiliser le dépôt `pkgs.k8s.io`, comme dans les commandes ci-dessous.
+
+#### 5.1 - Mettre à jour le système
+
+Mettre à jour la liste des paquets, puis les paquets déjà installés :
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo reboot
+```
+
+Les deux écritures suivantes sont équivalentes : le `&&` enchaîne simplement les deux commandes sur une ligne.
+
+```bash
+sudo apt update
+sudo apt upgrade -y
+sudo reboot
+```
+
+> [!NOTE]
+> Le `sudo reboot` ferme la session MobaXterm : attendre le redémarrage de la VM, puis rouvrir la session.
+
+#### 5.2 - Installer les dépendances
+
+Installer les outils nécessaires pour utiliser un dépôt en HTTPS et vérifier sa clé de signature :
+
 ```bash
 sudo apt-get update
 sudo apt-get install -y apt-transport-https ca-certificates curl gpg
+```
 
+> [!NOTE]
+> Le guide d'origine installe `gnupg` et `lsb-release` à la place de `gpg`. Les deux jeux de paquets conviennent : `gnupg` fournit aussi la commande `gpg`.
+
+#### 5.3 - Ajouter le dépôt officiel de Kubernetes
+
+Créer le dossier des clés, télécharger la clé de signature, puis déclarer le dépôt (remplacer `v1.30` par la version choisie) :
+
+```bash
 sudo mkdir -p -m 755 /etc/apt/keyrings
+
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key \
   | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
@@ -484,12 +795,50 @@ echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.
   | sudo tee /etc/apt/sources.list.d/kubernetes.list
 
 sudo apt-get update
+```
+
+#### 5.4 - Installer `kubeadm`, `kubelet` et `kubectl`
+
+```bash
 sudo apt-get install -y kubelet kubeadm kubectl
 sudo apt-mark hold kubelet kubeadm kubectl
 sudo systemctl enable --now kubelet
 ```
 
-`apt-mark hold` empêche une mise à jour automatique accidentelle des composants.
+`apt-mark hold` empêche une mise à jour automatique accidentelle des composants. `systemctl enable --now kubelet` active `kubelet` au démarrage et le lance tout de suite.
+
+> [!TIP]
+> En cas d'erreur liée à des versions installées avec Snap, les supprimer d'abord :
+>
+> ```bash
+> sudo snap remove kubelet kubectl kubeadm
+> ```
+
+Vérifier les versions installées :
+
+```bash
+kubeadm version
+kubectl version --client
+kubelet --version
+```
+
+<details>
+<summary><strong>Pour aller plus loin - Activer l'autocomplétion de kubectl</strong></summary>
+
+L'autocomplétion permet de compléter les commandes et les noms de ressources avec la touche Tab :
+
+```bash
+sudo apt install -y bash-completion
+echo 'source <(kubectl completion bash)' >> ~/.bashrc
+source ~/.bashrc
+```
+
+</details>
+
+Document détaillé (préparation système, runtime et outils Kubernetes) : [`docs/03-container-runtime.md`](docs/03-container-runtime.md)
+
+> [!NOTE]
+> Source : procédure adaptée et traduite du guide « Kubernetes Installation Guide (2026 Update) » de [H A R S H H A A](https://www.github.com/NotHarshhaa).
 
 ---
 
@@ -497,7 +846,13 @@ sudo systemctl enable --now kubelet
 
 #### 6.1 - Control Plane (`k8s-control-plane`)
 
-Avant l'initialisation, vérifier sur les trois VM : runtime actif, modules et paramètres noyau chargés, swap désactivé, versions compatibles, communication réseau fonctionnelle.
+Avant l'initialisation du Control Plane, vérifier sur les trois VM :
+
+- que le runtime fonctionne et que son interface CRI est disponible ;
+- que les modules noyau et les paramètres réseau nécessaires sont actifs ;
+- que le swap est désactivé ;
+- que les versions de `kubeadm`, `kubelet` et `kubectl` sont compatibles ;
+- que le réseau permet les communications nécessaires entre les composants.
 
 ```bash
 sudo kubeadm init \
@@ -518,10 +873,17 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
 #### 6.2 - Installer le plugin réseau (CNI)
 
-Flannel (retenu pour ce lab, avec `10.244.0.0/16`) :
+##### 6.2.1 - Flannel (retenu pour ce lab, avec `10.244.0.0/16`)
 
 ```bash
 kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+```
+
+Après l'installation du CNI, vérifier la disponibilité des nœuds et l'état des pods système avant de poursuivre :
+
+```bash
+kubectl get nodes
+kubectl get pods -n kube-system
 ```
 
 <details>
@@ -529,7 +891,45 @@ kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/
 
 Calico, Cilium ou Weave sont des alternatives. Chaque CNI attend un CIDR de pods précis (à passer à `--pod-network-cidr`) et peut demander des règles de pare-feu supplémentaires. Vérifier la compatibilité avec la version de Kubernetes avant de choisir.
 
+| Plugin | Quand l'envisager |
+|---|---|
+| Flannel | Laboratoire simple, besoins réseau classiques (choix retenu ici) |
+| Calico | Réseau de pods avec politiques réseau et configurations variées |
+| Cilium | Fonctions réseau avancées et observabilité |
+
+Le CNI doit être choisi **avant** `kubeadm init`, afin d'utiliser un CIDR de pods compatible et la bonne procédure d'installation.
+
 </details>
+
+##### 6.2.2 - Alternative : Calico (opérateur Tigera)
+
+À utiliser **à la place de** Flannel, jamais en plus. L'ancienne méthode `kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml` est **obsolète** : la méthode actuelle passe par l'opérateur Tigera.
+
+> [!CAUTION]
+> Le guide d'origine utilise `--pod-network-cidr=192.168.0.0/16`. Ce réseau **chevauche** celui des VM (`192.168.189.0/24`) et ne doit pas être utilisé dans ce laboratoire. Choisir un réseau de pods distinct, par exemple `10.244.0.0/16`, le passer à `kubeadm init --pod-network-cidr=...`, puis utiliser **la même valeur** dans le champ `cidr` de `custom-resources.yaml`.
+
+**a) Installer l'opérateur Tigera**
+
+```bash
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/tigera-operator.yaml
+```
+
+**b) Télécharger les ressources personnalisées, modifier le champ `cidr`, puis les appliquer**
+
+```bash
+curl -O https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/custom-resources.yaml
+nano custom-resources.yaml     # remplacer cidr: 192.168.0.0/16 par le réseau de pods choisi
+kubectl create -f custom-resources.yaml
+```
+
+**c) Vérifier que Calico fonctionne** et attendre que tous les pods soient `Running` avant de continuer
+
+```bash
+watch kubectl get pods -n calico-system
+```
+
+> [!NOTE]
+> `v3.31.4` est la version indiquée dans le guide d'origine : vérifier la dernière version sur la documentation officielle de Calico avant de l'utiliser.
 
 #### 6.3 - Joindre les Workers
 
@@ -547,6 +947,66 @@ sudo kubeadm join 192.168.189.10:6443 --token <TOKEN> --discovery-token-ca-cert-
 
 > [!CAUTION]
 > Ne publie jamais dans le dépôt une commande `kubeadm join` contenant son jeton, une clé privée SSH, un mot de passe ou un kubeconfig sensible.
+
+<details>
+<summary><strong>Pour aller plus loin - Dépannage du cluster</strong></summary>
+
+**1. Réinitialiser le nœud** si l'installation échoue, puis recommencer :
+
+```bash
+sudo kubeadm reset -f
+sudo rm -rf $HOME/.kube
+sudo iptables -F && sudo iptables -t nat -F && sudo iptables -t mangle -F && sudo iptables -X
+```
+
+> [!WARNING]
+> Ces commandes effacent la configuration Kubernetes et les règles `iptables` du nœud où elles sont exécutées. À lancer uniquement sur la machine à réinitialiser.
+
+**2. Consulter les journaux** pour comprendre une erreur :
+
+```bash
+journalctl -xeu kubelet
+kubectl describe pod <nom-du-pod> -n kube-system
+```
+
+**3. Régénérer la commande de jonction** quand le jeton a expiré (les jetons expirent après 24 heures). À exécuter sur le Control Plane :
+
+```bash
+kubeadm token create --print-join-command
+```
+
+**4. `containerd` est inactif**
+
+```bash
+sudo systemctl status containerd --no-pager
+sudo journalctl -u containerd -n 100 --no-pager
+```
+
+**5. Un Worker ne rejoint pas le cluster**
+
+```bash
+ip route
+getent hosts k8s-control-plane
+nc -vz 192.168.189.10 6443
+sudo systemctl status kubelet --no-pager
+sudo journalctl -u kubelet -n 100 --no-pager
+```
+
+`nc -vz` teste l'accès TCP au port `6443` du Control Plane. Vérifier aussi les règles de pare-feu et les paramètres de la commande `kubeadm join`.
+
+**6. Les nœuds restent `NotReady`**
+
+```bash
+kubectl get nodes -o wide
+kubectl get pods -A
+kubectl describe node k8s-worker-01
+```
+
+Examiner le runtime, le CNI et les événements Kubernetes.
+
+</details>
+
+Document détaillé : [`docs/04-kubernetes.md`](docs/04-kubernetes.md)
 
 ---
 
@@ -579,6 +1039,8 @@ Un conteneur Docker Rancher unique peut servir à des tests rapides, mais cette 
 
 </details>
 
+Document détaillé : [`docs/05-rancher.md`](docs/05-rancher.md)
+
 ---
 
 ### Étape 8 - Valider le cluster
@@ -602,6 +1064,8 @@ kubectl get pods -o wide
 kubectl delete deployment nginx-test
 ```
 
+Document détaillé : [`docs/06-validation.md`](docs/06-validation.md)
+
 ---
 
 ### Étape 9 - Documenter les problèmes (troubleshooting)
@@ -621,6 +1085,10 @@ Incidents déjà rencontrés pendant ce laboratoire :
 | `Unit containerd.service could not be found` | `containerd` non installé (paquets non téléchargés faute de réseau) | Rétablir le réseau, puis `sudo apt install -y containerd` |
 | Login ou mot de passe refusé sur une VM neuve | Clavier QWERTY choisi à l'installation | Réinstaller en choisissant la disposition **French** |
 | Plusieurs VM avec le même nom ou le même `machine-id` | VM clonée sans personnalisation | `hostnamectl set-hostname`, puis régénérer le `machine-id` |
+| `Network error: Connection refused` dans MobaXterm | OpenSSH server non installé sur la VM, rien n'écoute sur le port 22 | Installer et démarrer OpenSSH (étape 1.5.2) |
+| `Access denied` dans MobaXterm alors que le mot de passe est correct | Nom d'utilisateur erroné : nom d'hôte saisi à la place du compte, ou faute de frappe | Utiliser le compte créé à l'installation (`ubuntu-server-01`, `ubuntu-worker-01`…) |
+
+Document détaillé : [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)
 
 ---
 
@@ -658,6 +1126,9 @@ Incidents déjà rencontrés pendant ce laboratoire :
 - Distinguer les commandes exécutées des commandes proposées.
 - Ne pas déclarer une étape réussie sans vérification.
 - Utiliser un mot de passe simple uniquement pour le laboratoire, et le durcir avant tout usage réel.
+- Documenter les adresses IP réellement attribuées.
+- Garder un accès à la console VMware pendant les modifications réseau.
+- Ne pas installer Kubernetes avant d'avoir validé la connectivité entre les nœuds.
 
 ---
 
@@ -665,23 +1136,27 @@ Incidents déjà rencontrés pendant ce laboratoire :
 
 - [Documentation Kubernetes](https://kubernetes.io/docs/home/)
 - [Installation de kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/)
+- [Création d'un cluster avec kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/)
+- [Ports et protocoles Kubernetes](https://kubernetes.io/docs/reference/networking/ports-and-protocols/)
 - [Documentation Ubuntu Server](https://documentation.ubuntu.com/server/)
 - [Documentation Netplan](https://netplan.readthedocs.io/)
 - [Documentation containerd](https://containerd.io/docs/)
+- [Documentation Flannel](https://github.com/flannel-io/flannel)
+- [Documentation Calico](https://docs.tigera.io/calico/latest)
 - [Documentation Helm](https://helm.sh/docs/)
 - [Documentation Rancher](https://ranchermanager.docs.rancher.com/)
 - [Installer Rancher sur Kubernetes avec Helm](https://ranchermanager.docs.rancher.com/getting-started/installation-and-upgrade/install-upgrade-on-a-kubernetes-cluster)
 - [Installer Docker Engine sur Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
+- [MobaXterm](https://mobaxterm.mobatek.net/)
 
 ---
 
 ## 10. État actuel
 
 > [!NOTE]
-> Le dépôt a été cloné sur le poste Windows. La clé SSH a été créée et ajoutée au compte GitHub, et le test `ssh -T git@github.com` a réussi.
+> Le dépôt a été cloné sur le poste Windows. La clé SSH a été créée et ajoutée au compte GitHub, et le test `ssh -T git@github.com` a réussi. Les trois VM sont créées, configurées en réseau avec leurs adresses IP statiques, et accessibles en SSH avec MobaXterm.
 
 > [!WARNING]
 > La documentation des étapes et les captures doivent encore être complétées. L'installation de Kubernetes et de Rancher reste à effectuer et à valider.
 
 **Dernière mise à jour :** 2026-10-28.
-

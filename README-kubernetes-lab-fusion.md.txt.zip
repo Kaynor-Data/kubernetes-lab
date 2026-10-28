@@ -591,10 +591,12 @@ Si `sudo systemctl status containerd` répond `Unit containerd.service could not
 
 À réaliser sur les trois nœuds. Choisir la version de Kubernetes et remplacer v1.30 dans les commandes ci-dessous par la version souhaitée.
 
+> [!WARNING]
+> Vérifier sur la documentation officielle quelle version est encore supportée avant d'installer : `v1.30` est donnée ici à titre d'exemple et peut ne plus être maintenue. Les versions de `kubeadm`, `kubelet` et `kubectl` doivent être compatibles entre elles.
 
-> [!WARNING] Vérifier sur la documentation officielle quelle version est encore supportée avant d'installer : v1.30 est donnée ici à titre d'exemple et peut ne plus être maintenue. Les versions de kubeadm, kubelet et kubectl doivent être compatibles entre elles.
 
-> [!NOTE] L'ancien dépôt apt.kubernetes.io (kubernetes-xenial) est obsolète et supprimé. Il faut utiliser le dépôt pkgs.k8s.io, comme dans les commandes ci-dessous.
+> [!NOTE]
+> L'ancien dépôt `apt.kubernetes.io` (`kubernetes-xenial`) est **obsolète et supprimé**. Il faut utiliser le dépôt `pkgs.k8s.io`, comme dans les commandes ci-dessous.
 
 #### 5.1 - Mettre à jour le système
 
@@ -613,7 +615,8 @@ sudo apt upgrade -y
 sudo reboot
 ```
 
-> [!NOTE] Le sudo reboot ferme la session MobaXterm : attendre le redémarrage de la VM, puis rouvrir la session.
+> [!NOTE] 
+> Le `sudo reboot` ferme la session MobaXterm : attendre le redémarrage de la VM, puis rouvrir la session.
 
 ---
 
@@ -627,7 +630,8 @@ sudo apt-get update
 sudo apt-get install -y apt-transport-https ca-certificates curl gpg
 ```
 
-> [!NOTE] Le guide d'origine installe gnupg et lsb-release à la place de gpg. Les deux jeux de paquets conviennent : gnupg fournit aussi la commande gpg.
+> [!NOTE]
+> Le guide d'origine installe `gnupg` et `lsb-release` à la place de `gpg`. Les deux jeux de paquets conviennent : `gnupg` fournit aussi la commande `gpg`.
 
 #### 5.3 - Ajouter le dépôt officiel de Kubernetes
 
@@ -656,37 +660,47 @@ sudo apt-mark hold kubelet kubeadm kubectl
 sudo systemctl enable --now kubelet
 ```
 
-apt-mark hold empêche une mise à jour automatique accidentelle des composants. systemctl enable --now kubelet active kubelet au démarrage et le lance tout de suite.
+`apt-mark hold` empêche une mise à jour automatique accidentelle des composants. `systemctl enable --now kubelet` active `kubelet` au démarrage et le lance tout de suite.
 
-Vérifier les versions installées :
-
-
-> [!TIP] En cas d'erreur liée à des versions installées avec Snap, les supprimer d'abord :  sudo snap remove kubelet kubectl kubeadm 
+> [!TIP] 
+> En cas d'erreur liée à des versions installées avec Snap, les supprimer d'abord :
+>  
 > ```bash
 > sudo snap remove kubelet kubectl kubeadm
 > ```
+
+Vérifier les versions installées :
+
+```bash
+kubeadm version
+kubectl version --client
+kubelet --version
+```
+
+Document détaillé (préparation système, runtime et outils Kubernetes) : [`docs/03-container-runtime.md`](docs/03-container-runtime.md)
+
+> [!NOTE]
+> Source : procédure adaptée et traduite du guide « Kubernetes Installation Guide (2026 Update) » de [H A R S H H A A](https://www.github.com/NotHarshhaa).
+
 
 <details> 
   <summary>
     <strong>
       Pour aller plus loin - Activer l'autocomplétion de `kubectl`
     </strong>
-</summary>
+  </summary>
 
 
+  L'autocomplétion permet de compléter les commandes et les noms de ressources avec la touche Tab :
 
+  ```bash
+  sudo apt install -y bash-completion
+  echo 'source <(kubectl completion bash)' >> ~/.bashrc
+  source ~/.bashrc
+  ```
 
-```bash
-kubeadm version
-kubectl version --client
-kubelet --version
-sudo systemctl enable --now kubelet
-```
+</details>
 
-
-`apt-mark hold` empêche une mise à jour automatique accidentelle des composants.
-
-Document détaillé (préparation système, runtime et outils Kubernetes) : [`docs/03-container-runtime.md`](docs/03-container-runtime.md)
 
 ---
 
@@ -721,7 +735,7 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
 #### 6.2 - Installer le plugin réseau (CNI)
 
-Flannel (retenu pour ce lab, avec `10.244.0.0/16`) :
+##### 6.2.1 - Flannel (retenu pour ce lab, avec `10.244.0.0/16`) :
 
 ```bash
 kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
@@ -741,6 +755,63 @@ Calico, Cilium ou Weave sont des alternatives. Chaque CNI attend un CIDR de pods
 
 </details>
 
+
+Exemple avec Calico (opérateur Tigera)
+
+L'ancienne méthode kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml est obsolète. La méthode actuelle passe par l'opérateur Tigera.
+
+
+> [!CAUTION] Le guide d'origine utilise --pod-network-cidr=192.168.0.0/16. Ce réseau chevauche celui des VM (192.168.189.0/24) et ne doit pas être utilisé dans ce laboratoire. Choisir un réseau de pods distinct, par exemple 10.244.0.0/16, le passer à kubeadm init --pod-network-cidr=..., puis utiliser la même valeur dans le champ cidr de custom-resources.yaml.
+
+
+##### 6.2.2 - Alternative : Calico (opérateur Tigera)
+
+À utiliser **à la place de** Flannel, jamais en plus. L'ancienne méthode `kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml` est **obsolète** : la méthode actuelle passe par l'opérateur Tigera.
+
+> [!CAUTION]
+> Le guide d'origine utilise `--pod-network-cidr=192.168.0.0/16`. Ce réseau **chevauche** celui des VM (`192.168.189.0/24`) et ne doit pas être utilisé dans ce laboratoire. Choisir un réseau de pods distinct, par exemple `10.244.0.0/16`, le passer à `kubeadm init --pod-network-cidr=...`, puis utiliser **la même valeur** dans le champ `cidr` de `custom-resources.yaml`.
+
+**a) Installer l'opérateur Tigera**
+
+```bash
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/tigera-operator.yaml
+```
+
+**b) Télécharger les ressources personnalisées, modifier le champ `cidr`, puis les appliquer**
+
+```bash
+curl -O https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/custom-resources.yaml
+nano custom-resources.yaml     # remplacer cidr: 192.168.0.0/16 par le réseau de pods choisi
+kubectl create -f custom-resources.yaml
+```
+
+**c) Vérifier que Calico fonctionne** et attendre que tous les pods soient `Running` avant de continuer
+
+```bash
+watch kubectl get pods -n calico-system
+```
+
+> [!NOTE]
+> `v3.31.4` est la version indiquée dans le guide d'origine : vérifier la dernière version sur la documentation officielle de Calico avant de l'utiliser.
+
+
+##### 6.2.3 - Télécharger les ressources personnalisées, modifier le champ cidr, puis les appliquer :
+
+```bash
+curl -O https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/custom-resources.yaml
+nano custom-resources.yaml     # remplacer cidr: 192.168.0.0/16 par le réseau de pods choisi
+kubectl create -f custom-resources.yaml
+```
+
+##### 6.2.4 - Vérifier que Calico fonctionne et attendre que tous les pods soient Running avant de continuer :
+
+```bash
+watch kubectl get pods -n calico-system
+```
+
+> [!NOTE] v3.31.4 est la version indiquée dans le guide d'origine : vérifier la dernière version sur la documentation officielle de Calico avant de l'utiliser.
+
+
 #### 6.3 - Joindre les Workers
 
 Sur le Control Plane, générer la commande de jonction :
@@ -757,6 +828,36 @@ sudo kubeadm join 192.168.189.10:6443 --token <TOKEN> --discovery-token-ca-cert-
 
 > [!CAUTION]
 > Ne publie jamais dans le dépôt une commande `kubeadm join` contenant son jeton, une clé privée SSH, un mot de passe ou un kubeconfig sensible.
+
+
+<details>
+<summary><strong>Pour aller plus loin - Dépannage du cluster</strong></summary>
+
+**1. Réinitialiser le nœud** si l'installation échoue, puis recommencer :
+
+```bash
+sudo kubeadm reset -f
+sudo rm -rf $HOME/.kube
+sudo iptables -F && sudo iptables -t nat -F && sudo iptables -t mangle -F && sudo iptables -X
+```
+
+> [!WARNING]
+> Ces commandes effacent la configuration Kubernetes et les règles `iptables` du nœud où elles sont exécutées. À lancer uniquement sur la machine à réinitialiser.
+
+**2. Consulter les journaux** pour comprendre une erreur :
+
+```bash
+journalctl -xeu kubelet
+kubectl describe pod <nom-du-pod> -n kube-system
+```
+
+**3. Régénérer la commande de jonction** quand le jeton a expiré (les jetons expirent après 24 heures). À exécuter sur le Control Plane :
+
+```bash
+kubeadm token create --print-join-command
+```
+
+</details>
 
 Document détaillé : [`docs/04-kubernetes.md`](docs/04-kubernetes.md)
 
