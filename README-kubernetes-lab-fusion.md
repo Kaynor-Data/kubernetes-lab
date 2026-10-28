@@ -580,6 +580,14 @@ Si `sudo systemctl status containerd` répond `Unit containerd.service could not
 
 ### Étape 5 - Installer les outils Kubernetes (`kubeadm`, `kubelet`, `kubectl`)
 
+
+<h3>
+  <img src="docs/images/favicon/accroche.jpg" alt="Puzzle" width="24" style="vertical-align: middle; margin-right: 8;">
+  Kubernetes Installation Guide (2026 Update)
+</h3>
+<!-- 
+<p><em>By HARSHHAA</em></p> -->
+
 <table>
   <tr>
     <td align="center">
