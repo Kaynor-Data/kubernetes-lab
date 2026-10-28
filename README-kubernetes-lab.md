@@ -51,16 +51,15 @@ Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 W
 
 Sur les 3 nœuds du cluster, le fichier `/etc/hosts` a été configuré comme suit :
 
-<!-- ```text -->
-192.168.189.10 k8s-control-plane
-192.168.189.11 k8s-worker-01
-192.168.189.12 k8s-worker-02
+- 192.168.189.10 k8s-control-plane
+- 192.168.189.11 k8s-worker-01
+- 192.168.189.12 k8s-worker-02
 
 ### 2.1 - Commandes de validation :
 
-getent hosts k8s-control-plane
-getent hosts k8s-worker-01
-getent hosts k8s-worker-02
+- getent hosts k8s-control-plane
+- getent hosts k8s-worker-01
+- getent hosts k8s-worker-02
 
 
 ### 2.2 - Commandes de validation validées :
