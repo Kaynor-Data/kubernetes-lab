@@ -16,6 +16,7 @@ Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 W
 ![Kubernetes](docs/images/Kubernetes-01.png)
 
 ### Cluster Kubernetes
+
 ![Architecture du cluster Kubernetes](docs/images/Kubernetes-Cluster-01.png)
 ![Cluster Manager](docs/images/Cluster-Manager-01.png)
 
@@ -922,6 +923,47 @@ nano custom-resources.yaml     # remplacer cidr: 192.168.0.0/16 par le réseau d
 kubectl create -f custom-resources.yaml
 ```
 
+> [!CAUTION] 
+> il faut remplacer 192.168.0.0/16 par 10.244.0.0/16, car on as initialisé Kubernetes avec --pod-network-cidr=10.244.0.0/16
+
+---
+1. Vérifier l'état de Flannel
+
+Sur ton Control Plane, exécute :
+
+```bash
+kubectl get pods -n kube-flannel
+kubectl get pods -n kube-system
+kubectl get nodes -o wide
+```
+
+2. Si tu souhaites finalement utiliser Calico
+
+Dans ce cas, le CIDR à utiliser dans custom-resources.yaml est bien :
+
+```bash
+cidr: 10.244.0.0/16
+```
+
+
+Pour le modifier :
+
+```bash
+nano custom-resources.yaml
+```
+
+Repère la ligne :
+
+```bash
+cidr: 192.168.0.0/16
+```
+
+Remplace-la par :
+
+```bash
+cidr: 10.244.0.0/16
+```
+
 **c) Vérifier que Calico fonctionne** et attendre que tous les pods soient `Running` avant de continuer
 
 ```bash
@@ -1003,6 +1045,262 @@ kubectl describe node k8s-worker-01
 ```
 
 Examiner le runtime, le CNI et les événements Kubernetes.
+
+<h2>
+  Diagnostic
+</h2>
+
+À la fin de votre session, kubectl peux échoue avec :
+
+```text
+The connection to the server localhost:8080 was refused
+```
+
+Ce n'est pas un problème de réseau ni de kubelet : c'est la conséquence directe de deux commandes que vous avez lancées juste avant :
+
+```bash
+sudo kubeadm reset -f
+sudo rm -rf $HOME/.kube
+```
+
+
+- `kubeadm reset -f a` **détruit le control-plane** (arrêt de kubelet, suppression de `/etc/kubernetes/*`, de `/var/lib/etcd`, des manifests statiques…). Il n'y a donc plus d'API server sur `192.168.189.10:6443`.
+- `rm -rf $HOME/.kube` a **supprimé le kubeconfig**. Sans kubeconfig, `kubectl` retombe sur son endpoint par défaut `http://localhost:8080`, où plus rien n'écoute → `connection refused`.
+
+Le cluster est donc dans l'état « reset », et vous essayez de l'interroger. C'est normal que ça échoue.
+
+**La cause probable du reset : deux CNI installés**
+
+Dans la session, vous avez appliqué **Flannel** :
+
+```bash
+kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+```
+
+puis **Calico** par-dessus :
+
+```bash
+kubectl create -f .../tigera-operator.yaml
+kubectl create -f custom-resources.yaml
+```
+
+C'est la vraie erreur de fond. Flannel et Calico gèrent tous les deux le réseau des pods (interfaces `cni0`, routes, règles iptables, BGP/VXLAN…). Les installer simultanément produit un réseau instable : c'est très probablement pourquoi le nœud restait `NotReady`, que CoreDNS était `Pending`, et que vous avez fini par faire un `reset`.
+
+Il faut choisir UN seul CNI.
+
+
+**Ce que vous devez faire maintenant**
+
+1. **Nettoyer les restes du reset**
+
+`kubeadm reset` ne nettoie **pas** la config CNI ni les conteneurs containerd, comme il vous l'a lui-même indiqué. Il faut donc :
+
+```bash
+sudo rm -rf /etc/cni/net.d
+sudo rm -rf /var/lib/cni/
+sudo rm -rf $HOME/.kube
+sudo systemctl restart containerd
+sudo systemctl restart kubelet
+
+# si vous utilisez IPVS :
+sudo ipvsadm --clear 2>/dev/null || true
+
+# iptables (déjà fait chez vous, mais à refaire après le restart)
+sudo iptables -F && sudo iptables -t nat -F && sudo iptables -t mangle -F && sudo iptables -X
+```
+
+Le `systemctl restart containerd` est important : dans vos logs on voit encore des shims et sandboxes en cours de démontage (`exit_status:137`), ce sont les conteneurs tués par le reset. Un restart repart propre.
+
+2. **Réinitialiser le control-plane**
+
+```bash
+sudo kubeadm init \
+  --apiserver-advertise-address=192.168.189.10 \
+  --pod-network-cidr=10.244.0.0/16
+```
+
+
+Puis reconfigurer le kubeconfig utilisateur :
+
+```bash
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+```
+
+3. **Installer un seul CNI**
+
+
+**Option A — Flannel** (le CIDR `10.244.0.0/16` correspond par défaut) :
+
+
+```bash
+kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+```
+
+**Option B — Calico** (v3.31.4, comme vous avez commencé) :
+
+
+```bash
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/tigera-operator.yaml
+curl -O https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/custom-resources.yaml
+# Éditer custom-resources.yaml : cidr doit être 10.244.0.0/16 (et non 192.168.0.0/16)
+kubectl create -f custom-resources.yaml
+
+```
+
+> [!CAUTION]
+> Dans l'option B, vérifiez bien que `custom-resources.yaml` contient `cidr: 10.244.0.0/16` **avant** de l'appliquer (c'est ce que vous faisiez avec `nano`, mais le contenu final n'apparaît pas dans le log — assurez-vous que la modification a bien été enregistrée).
+
+
+
+4. **Vérifier**
+
+```bash
+kubectl get nodes -o wide
+kubectl get pods -A
+```
+
+Le nœud doit passer à `Ready` en 1–2 minutes après l'application du CNI, et CoreDNS doit passer `Running`.
+
+
+
+5. **Régénérer la commande de join pour les workers**
+
+```bash
+kubeadm token create --print-join-command
+```
+
+Puis exécuter cette commande sur `k8s-worker-01` (et les autres workers).
+
+> [!CAUTION]
+> **Ne mélangez jamais Flannel et Calico.**
+> Si vous voulez changer de CNI plus tard, refaites `kubeadm reset` **puis** le nettoyage complet (`/etc/cni/net.d`, `/var/lib/cni`, règles iptables) **avant** d'installer l'autre CNI.
+
+> [!CAUTION]
+> **Le** `--pod-network-cidr` **de** `kubeadm init` **doit correspondre au CIDR attendu par le CNI.**
+> 
+> - **Flannel** attend `10.244.0.0/16` par défaut.
+> - **Calico** via `custom-resources.yaml` attend le CIDR que vous y mettez (souvent `192.168.0.0/16` par défaut, d'où notre édition avec `nano`).
+> Un décalage entre ces deux valeurs empêche les pods d'obtenir une IP et laisse le nœud en `NotReady`.
+
+> [!CAUTION]
+> **Les erreurs** `drive>` **/** `plugi>` **dans** `journalctl -xeu kubelet` **ne sont pas la cause du** `NotReady`.
+> Elles sont simplement **tronquées par le terminal** (largeur d'affichage) et datent du **moment du reset** (arrêt forcé des conteneurs). Ne les prenez pas pour la cause initiale du problème.
+
+> [!CAUTION]
+> **Après un** `kubeadm reset`**, nettoyez toujours la config CNI et redémarrez containerd.**
+>
+> ```bach
+> sudo rm -rf /etc/cni/net.d
+> sudo rm -rf /var/lib/cni/
+> sudo systemctl restart containerd
+> ```
+>
+> Sinon un **ancien CNI fantôme** peut empêcher le nouveau cluster de démarrer correctement.
+
+> [!CAUTION]
+> **En résumé :** votre `kubectl` échoue simplement parce que **le cluster n'existe plus** (`kubeadm reset` + suppression de `$HOME/.kube`).
+> Réinitialisez proprement, **choisissez un seul CNI**, et le cluster repartira.
+
+---
+
+**Variante : un seul bloc `[[!WARNING]` global**
+
+Si vous préférez tout regrouper dans une seule admonition :
+
+
+> [!WARNING]
+> **Points d'attention**
+> 1. **Ne mélangez jamais Flannel et Calico.** Pour changer de CNI plus tard : `kubeadm reset` + nettoyage (`/etc/cni/net.d`, `/var/lib/cni`, iptables) avant d'installer l'autre.
+> 2. `--pod-network-cidr` **doit correspondre au CIDR du CNI**. Flannel attend `10.244.0.0/16` ; Calico attend celui défini dans `custom-resources.yaml` (souvent `192.168.0.0/16`).
+> 3. **Les erreurs** `drive>` / `plugi>` **dans** `journalctl -xeu kubelet` sont tronquées par le terminal et datent du reset — ce n'est pas la cause initiale du `NotReady`.
+> 4. **Après** `kubeadm reset`, toujours `rm -rf /etc/cni/net.d` + `systemctl restart containerd`, sinon un CNI fantôme bloque le redémarrage.
+> 
+> **En résumé :** `kubectl` échoue parce que le cluster n'existe plus. Réinitialisez proprement, choisissez `un seul CNI`, et le cluster repartira.
+
+
+---
+
+
+> [!IMPORTANT]
+> Le message d'erreur indique que `kubectl` essaie de se connecter à `localhost:8080`, mais qu'aucun serveur Kubernetes ne répond à cette adresse.
+> 
+> **Bonne nouvelle : cela ne signifie pas nécessairement que ton cluster Kubernetes est en panne.** Il est possible que la configuration de `kubectl` ne soit plus chargée dans ta session SSH.
+> 
+> Nous allons vérifier cela sans réinitialiser ton cluster.
+> 
+> 
+> ***Étape 1 — Vérifier le fichier de configuration***
+> Sur ton Control Plane `192.168.189.10`, exécute :
+> 
+> ```bach
+> ls -l ~/.kube/config
+> ```
+> 
+> Puis :
+> 
+> ```bach
+> echo "$KUBECONFIG"
+> ``` 
+> 
+> Enfin :
+> 
+> ```bach
+> sudo ls -l /etc/kubernetes/admin.conf
+> ``` 
+> Le fichier `/etc/kubernetes/admin.conf` a été créé avec succès lors de l'initialisation du cluster.
+>
+> ***Étape 2 — Reconfigurer kubectl***
+> Si `/etc/kubernetes/admin.conf` existe, exécute ces commandes dans ta session SSH :
+> 
+> ```bach
+> mkdir -p "$HOME/.kube"
+> sudo cp /etc/kubernetes/admin.conf "$HOME/.kube/config"
+> sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
+> export KUBECONFIG="$HOME/.kube/config"
+> ```
+> 
+> Puis teste la connexion : 
+> 
+> ```bach
+> kubectl cluster-info
+> ```
+> Si la connexion fonctionne, affiche les nœuds :
+> ```bach
+> kubectl get nodes -o wide
+> ```
+> Et les Pods du réseau Flannel :
+> 
+> ```bach
+> kubectl get pods -n kube-flannel
+> ```
+> 
+> **Pourquoi cette erreur est-elle apparue ?**
+> Lors de l'initialisation de Kubernetes, tu as exécuté :
+> 
+> ```bach
+> mkdir -p $HOME/.kube
+> sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+> sudo chown $(id -u):$(id -g) $HOME/.kube/config
+> ```
+> Ces commandes configurent `kubectl` pour communiquer avec le serveur Kubernetes. Si le fichier est absent, inaccessible ou si une variable d'environnement modifie sa configuration, `kubectl` peut essayer d'utiliser une adresse par défaut comme `localhost:8080`.
+> 
+> L'erreur actuelle ne permet pas encore de savoir laquelle de ces situations s'est produite.
+> 
+> **Étape 3 — Si l'erreur persiste**
+> Exécute :
+> ```bach
+> sudo systemctl status kubelet --no-pager
+> ``` 
+> Puis :
+> ```bach
+> sudo crictl ps
+> ```
+> Ces commandes nous aideront à vérifier si les composants du Control Plane fonctionnent.
+> 
+> **Pour l'instant, ne relance pas `kubeadm init` et ne supprime aucun composant Kubernetes.**
+
 
 </details>
 
