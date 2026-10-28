@@ -580,25 +580,64 @@ Si `sudo systemctl status containerd` répond `Unit containerd.service could not
 
 ### Étape 5 - Installer les outils Kubernetes (`kubeadm`, `kubelet`, `kubectl`)
 
-<img src="docs/kubernetes/kubernetes-installation-guide.jpg" alt="Kubernetes Installation Guide" width="1050">
+<img src="docs/kubernetes/kubernetes-installation-guide.jpg" alt="Guide d'installation de Kubernetes" width="1050"> 
 
 <h2 style="display: flex; align-items: center; gap: 12px;"> 
-    <img src="docs/images/favicon/accroche.jpg" alt="Puzzle" width="36" style="vertical-align: middle;">
-    <span style="font-size: 28px; font-weight: bold;">Kubernetes Installation Guide (2026 Update)</span>
+  <img src="docs/images/favicon/accroche.jpg" alt="Puzzle" width="36" style="vertical-align: middle;"> 
+  <span style="font-size: 28px; font-weight: bold;">Guide d'installation de Kubernetes (mise à jour 2026)</span>
 </h2>
 
 ---
 
-À réaliser sur les trois nœuds. Choisir la version de Kubernetes et remplacer `v1.30` ci-dessous par la version souhaitée.
+À réaliser sur les trois nœuds. Choisir la version de Kubernetes et remplacer v1.30 dans les commandes ci-dessous par la version souhaitée.
 
-> [!WARNING]
-> Vérifier sur la documentation officielle quelle version est encore supportée avant d'installer : `v1.30` est donnée ici à titre d'exemple et peut ne plus être maintenue. Les versions de `kubeadm`, `kubelet` et `kubectl` doivent être compatibles entre elles.
+
+> [!WARNING] Vérifier sur la documentation officielle quelle version est encore supportée avant d'installer : v1.30 est donnée ici à titre d'exemple et peut ne plus être maintenue. Les versions de kubeadm, kubelet et kubectl doivent être compatibles entre elles.
+
+> [!NOTE] L'ancien dépôt apt.kubernetes.io (kubernetes-xenial) est obsolète et supprimé. Il faut utiliser le dépôt pkgs.k8s.io, comme dans les commandes ci-dessous.
+
+#### 5.1 - Mettre à jour le système
+
+Mettre à jour la liste des paquets, puis les paquets déjà installés :
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo reboot
+```
+
+Les deux écritures suivantes sont équivalentes : le && enchaîne simplement les deux commandes sur une ligne.
+
+```bash
+sudo apt update
+sudo apt upgrade -y
+sudo reboot
+```
+
+> [!NOTE] Le sudo reboot ferme la session MobaXterm : attendre le redémarrage de la VM, puis rouvrir la session.
+
+---
+
+#### 5.2 - Installer les dépendances
+
+Installer les outils nécessaires pour utiliser un dépôt en HTTPS et vérifier sa clé de signature :
 
 ```bash
 sudo apt-get update
+# sudo apt install -y apt-transport-https ca-certificates curl gnupg lsb-release
 sudo apt-get install -y apt-transport-https ca-certificates curl gpg
+```
 
+> [!NOTE] Le guide d'origine installe gnupg et lsb-release à la place de gpg. Les deux jeux de paquets conviennent : gnupg fournit aussi la commande gpg.
+
+#### 5.3 - Ajouter le dépôt officiel de Kubernetes
+
+Créer le dossier des clés, télécharger la clé de signature, puis déclarer le dépôt (remplacer v1.30 par la version choisie) :
+
+
+```bash
+sudo apt-get update
 sudo mkdir -p -m 755 /etc/apt/keyrings
+
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key \
   | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
@@ -606,10 +645,44 @@ echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.
   | sudo tee /etc/apt/sources.list.d/kubernetes.list
 
 sudo apt-get update
+```
+
+
+#### 5.4 - Installer kubeadm, kubelet et kubectl
+
+```bash
 sudo apt-get install -y kubelet kubeadm kubectl
 sudo apt-mark hold kubelet kubeadm kubectl
 sudo systemctl enable --now kubelet
 ```
+
+apt-mark hold empêche une mise à jour automatique accidentelle des composants. systemctl enable --now kubelet active kubelet au démarrage et le lance tout de suite.
+
+Vérifier les versions installées :
+
+
+> [!TIP] En cas d'erreur liée à des versions installées avec Snap, les supprimer d'abord :  sudo snap remove kubelet kubectl kubeadm 
+```bash
+sudo snap remove kubelet kubectl kubeadm
+```
+
+<details> 
+  <summary>
+    <strong>
+      Pour aller plus loin - Activer l'autocomplétion de `kubectl`
+    </strong>
+</summary>
+
+
+
+
+```bash
+kubeadm version
+kubectl version --client
+kubelet --version
+sudo systemctl enable --now kubelet
+```
+
 
 `apt-mark hold` empêche une mise à jour automatique accidentelle des composants.
 
