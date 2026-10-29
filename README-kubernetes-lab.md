@@ -228,7 +228,7 @@ Une VM déjà configurée peut être clonée : éteindre la VM source, clic droi
 Sur chaque clone, il faut ensuite :
 
 ```bash
-sudo [hostnamectl] [set-hostname k8s-worker-01]
+sudo hostnamectl set-hostname k8s-worker-01
 sudo nano /etc/netplan/50-cloud-init.yaml     # changer l'adresse IP
 sudo rm /etc/machine-id /var/lib/dbus/machine-id
 sudo systemd-machine-id-setup
