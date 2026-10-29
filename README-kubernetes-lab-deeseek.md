@@ -1021,9 +1021,56 @@ Document détaillé : [`docs/04-kubernetes.md`](docs/04-kubernetes.md)
 
 ### Étape 7 - Installer Rancher
 
-Pour ce laboratoire, étudier l'installation de Rancher sur Kubernetes avec Helm. Avant le déploiement, vérifier les prérequis officiels, installer Helm sur le poste d'administration (ou une machine ayant accès au cluster) et préparer l'accès HTTPS avec un certificat adapté.
+---
 
-Trame de la méthode Helm (à adapter aux versions et au nom d'hôte choisi) :
+1. **Configuration locale de Rancher avec RKE**
+
+Cette partie s'appuie sur le dépôt GitHub de la communauté SUSE Rancher :
+
+**Dépôt source :** [SUSE-Rancher-Community/local-setup-of-rancher-with-rke](https://github.com/SUSE-Rancher-Community/local-setup-of-rancher-with-rke)
+
+
+Ce dépôt contient le code source permettant de configurer un cluster Kubernetes local à l'aide de Vagrant et de Rancher Kubernetes Engine (RKE). Il décrit également les étapes nécessaires à l'installation de Rancher.
+
+
+
+![](docs/images/rancher/rancher-logo/rancher-logo.png)
+
+
+## Objectifs
+
+- Comprendre le déploiement d'un cluster Kubernetes local.
+- Automatiser la création des machines virtuelles avec Vagrant.
+- Découvrir le déploiement d'un cluster Kubernetes avec RKE.
+- Installer Rancher pour administrer le cluster via une interface Web.
+
+
+## Technologies utilisées
+
+| Technologie | Rôle |
+|---|---|
+| Vagrant | Automatisation de la création des machines virtuelles |
+| RKE | Déploiement du cluster Kubernetes |
+| Rancher | Administration du cluster Kubernetes |
+
+## Référence
+
+- [Dépôt GitHub original](https://github.com/SUSE-Rancher-Community/local-setup-of-rancher-with-rke)
+- [Documentation de RKE](https://rke.docs.rancher.com/installation)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ```bash
 helm repo add rancher-latest https://releases.rancher.com/server-charts/latest

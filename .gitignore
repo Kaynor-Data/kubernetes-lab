@@ -445,3 +445,14 @@ README-kubernetes-lab-03.md.txt.zip
 README-kubernetes-lab-02.md.txt.zip
 README-kubernetes-lab-01.md.txt.zip
 README-kubernetes-lab-fusion.md.txt.zip
+
+
+.vagrant
+
+# Log files
+*.log
+
+# RKE generated files
+cluster.rkestate
+
+kube_config_cluster.yml
