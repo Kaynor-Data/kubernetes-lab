@@ -258,6 +258,13 @@ sudo systemctl enable --now ssh
 sudo systemctl status ssh --no-pager
 ```
 
+```console
+sudo apt update
+sudo apt install -y openssh-server
+sudo systemctl enable --now ssh
+sudo systemctl status ssh --no-pager
+```
+
 Le service doit afficher `active (running)`. Si le pare-feu UFW est actif, autoriser aussi le port 22 :
 
 ```bash
