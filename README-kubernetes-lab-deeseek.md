@@ -1032,20 +1032,20 @@ Cette partie s'appuie sur le dépôt GitHub de la communauté SUSE Rancher :
 
 Ce dépôt contient le code source permettant de configurer un cluster Kubernetes local à l'aide de Vagrant et de Rancher Kubernetes Engine (RKE). Il décrit également les étapes nécessaires à l'installation de Rancher.
 
-
+---
 
 ![](docs/images/rancher/rancher-logo/rancher-logo.png)
 
 
-## Objectifs
+<!-- ## Objectifs
 
 - Comprendre le déploiement d'un cluster Kubernetes local.
 - Automatiser la création des machines virtuelles avec Vagrant.
 - Découvrir le déploiement d'un cluster Kubernetes avec RKE.
-- Installer Rancher pour administrer le cluster via une interface Web.
+- Installer Rancher pour administrer le cluster via une interface Web. -->
 
 
-## Technologies utilisées
+<!-- ## Technologies utilisées
 
 | Technologie | Rôle |
 |---|---|
@@ -1056,7 +1056,7 @@ Ce dépôt contient le code source permettant de configurer un cluster Kubernete
 ## Référence
 
 - [Dépôt GitHub original](https://github.com/SUSE-Rancher-Community/local-setup-of-rancher-with-rke)
-- [Documentation de RKE](https://rke.docs.rancher.com/installation)
+- [Documentation de RKE](https://rke.docs.rancher.com/installation) -->
 
 
 
