@@ -251,14 +251,14 @@ OpenSSH server permet de se connecter aux VM à distance, par exemple avec MobaX
 
 **Si la VM est déjà installée**, exécuter sur chaque VM :
 
-```bash
+<!-- ```bash
 sudo apt update
 sudo apt install -y openssh-server
 sudo systemctl enable --now ssh
 sudo systemctl status ssh --no-pager
-```
+``` -->
 
-```console
+```shell
 sudo apt update
 sudo apt install -y openssh-server
 sudo systemctl enable --now ssh
