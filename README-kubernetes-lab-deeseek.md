@@ -1,12 +1,13 @@
 # Kubernetes Lab - Ubuntu Server 24.04
 
-Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 Workers) sur trois machines virtuelles Ubuntu Server LTS sous VMware Workstation avec le réseau NAT (`VMnet8`), puis intégrer Rancher pour l'administration du cluster.
+Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 Workers) sur trois machines virtuelles Ubuntu Server 26.04.1 LTS sous VMware Workstation avec le réseau NAT (`VMnet8`), puis intégrer Rancher pour l'administration du cluster.
+
 
 > [!NOTE]
 > Les blocs **« Pour aller plus loin »** ne sont pas nécessaires pour réaliser le laboratoire. Ils conservent les méthodes alternatives, les diagnostics détaillés et les explications destinés aux prochains intervenants qui voudront approfondir.
 
-> [!NOTE]
-> **Version effectivement déployée pendant le laboratoire :** Ubuntu **26.04.1 LTS** (`Resolute Raccoon`, noyau `7.0.0-38-generic`), Kubernetes **v1.30.14**, containerd **2.2.2-0ubuntu1.2**, Flannel (latest). Le titre du dépôt reste « Ubuntu Server 24.04 » pour correspondre au cahier des charges initial ; la section 11 documente les écarts constatés et les erreurs qui en ont découlé. Vérifier la version à l'installation avec `lsb_release -a`.
+<!-- > [!NOTE]
+> **Version effectivement déployée pendant le laboratoire :** Ubuntu **26.04.1 LTS** (`Resolute Raccoon`, noyau `7.0.0-38-generic`), Kubernetes **v1.30.14**, containerd **2.2.2-0ubuntu1.2**, Flannel (latest). Le titre du dépôt reste « Ubuntu Server 24.04 » pour correspondre au cahier des charges initial ; la section 11 documente les écarts constatés et les erreurs qui en ont découlé. Vérifier la version à l'installation avec `lsb_release -a`. -->
 
 ---
 
@@ -41,7 +42,7 @@ Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 W
 ### Spécifications de l'environnement
 
 - **Hyperviseur :** VMware Workstation (réseau NAT `VMnet8`)
-- **Système d'exploitation :** Ubuntu Server LTS, sans interface graphique (vérifier la version exacte avec `lsb_release -a`)
+- **Système d'exploitation :** Ubuntu Server 24.04 LTS (`resolute`), sans interface graphique (vérifier la version exacte avec `lsb_release -a`)
 - **Sous-réseau NAT :** `192.168.189.0/24` (plage DHCP VMware : `192.168.189.128` à `192.168.189.254`)
 - **Adresse de l'hôte Windows sur VMnet8 :** `192.168.189.1`
 - **Passerelle NAT :** `192.168.189.2`
@@ -1023,18 +1024,9 @@ Document détaillé : [`docs/04-kubernetes.md`](docs/04-kubernetes.md)
 
 ---
 
-1. **Configuration locale de Rancher avec RKE**
-
-Cette partie s'appuie sur le dépôt GitHub de la communauté SUSE Rancher :
-
-**Dépôt source :** [SUSE-Rancher-Community/local-setup-of-rancher-with-rke](https://github.com/SUSE-Rancher-Community/local-setup-of-rancher-with-rke)
-
-
-Ce dépôt contient le code source permettant de configurer un cluster Kubernetes local à l'aide de Vagrant et de Rancher Kubernetes Engine (RKE). Il décrit également les étapes nécessaires à l'installation de Rancher.
+![](docs/images/rancher/rancher-logo/rancher-logo.png)
 
 ---
-
-![](docs/images/rancher/rancher-logo/rancher-logo.png)
 
 
 <!-- ## Objectifs
@@ -1059,15 +1051,25 @@ Ce dépôt contient le code source permettant de configurer un cluster Kubernete
 - [Documentation de RKE](https://rke.docs.rancher.com/installation) -->
 
 
+---
 
 
 
 
 
 
+### Pour aller plus loin — Rancher avec Vagrant, VirtualBox et RKE
+
+Une méthode alternative de déploiement local de Kubernetes et de Rancher est documentée ici :
+
+- [Configuration locale de Rancher avec Vagrant, VirtualBox et RKE](docs/rancher-vagrant-virtualBox.md)
+
+
+---
 
 
 
+2. **Configuration locale de Rancher avec helm**
 
 
 
