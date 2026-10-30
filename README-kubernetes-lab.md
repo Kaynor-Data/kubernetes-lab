@@ -1166,6 +1166,90 @@ kubectl get pods -A
 kubectl describe node k8s-worker-01
 ```
 
+
+> [!CAUTION]
+> **Erreur rencontrée : `kubectl` échoue après `sudo su`**
+>
+> ```text
+> root@k8s-control-plane:/home/ubuntu-server-01# kubectl get nodes
+> E1030 16:09:43.034940 ... couldn't get current server API group list:
+> Get "http://localhost:8080/api?timeout=32s": dial tcp 127.0.0.1:8080:
+> connect: connection refused
+> The connection to the server localhost:8080 was refused - did you specify the right host or port?
+> ```
+>
+> **Cause :** après `sudo su`, l'utilisateur devient `root`. `kubectl` cherche son kubeconfig dans `~/.kube/config`, c'est-à-dire `/root/.kube/config` pour root — un chemin qui **n'existe pas** (le kubeconfig a été créé pour `ubuntu-server-01` à l'étape 6.1). Sans kubeconfig, `kubectl` retombe sur son endpoint par défaut `http://localhost:8080`, où aucun API server n'écoute.
+>
+> **Ce n'est pas une variable d'environnement mal configurée** : c'est un fichier de configuration introuvable pour l'utilisateur courant.
+
+Trois méthodes permettent de corriger cette erreur. Choisir la plus adaptée au contexte.
+
+### Option 1 — Quitter root (la plus simple)
+
+```bash
+exit
+# L'utilisateur redevient ubuntu-server-01, dont le kubeconfig existe déjà
+kubectl get nodes
+```
+
+**Résultat attendu :**
+
+```text
+NAME                STATUS   ROLES           AGE    VERSION
+k8s-control-plane   Ready    control-plane   2d3h   v1.30.14
+k8s-worker-01       Ready    <none>          2d3h   v1.30.14
+k8s-worker-02       Ready    <none>          2d3h   v1.30.14
+```
+
+C'est la méthode la plus simple et celle qui a résolu le problème dans ce laboratoire : `ubuntu-server-01` possède déjà `~/.kube/config` depuis l'étape 6.1.
+
+### Option 2 — Rester root, mais exporter `KUBECONFIG`
+
+```bash
+export KUBECONFIG=/etc/kubernetes/admin.conf
+kubectl get nodes
+```
+
+`/etc/kubernetes/admin.conf` est le kubeconfig administrateur du cluster, créé par `kubeadm init`. Il fonctionne pour root et pour tout utilisateur qui peut le lire.
+
+> [!IMPORTANT]
+> Cet export ne dure que pour la session courante. Fermer le terminal ou ouvrir un nouvel onglet fait perdre la variable. Pour le rendre persistant :
+>
+> ```bash
+> echo 'export KUBECONFIG=/etc/kubernetes/admin.conf' >> /root/.bashrc
+> source /root/.bashrc
+> ```
+
+### Option 3 — Copier le kubeconfig dans `/root/.kube/`
+
+```bash
+mkdir -p /root/.kube
+cp /etc/kubernetes/admin.conf /root/.kube/config
+chmod 600 /root/.kube/config
+kubectl get nodes
+```
+
+C'est l'équivalent de ce qui a été fait pour `ubuntu-server-01`, mais pour root. Le fichier est présent en permanence, sans dépendre d'une variable d'environnement.
+
+> [!NOTE]
+> **Règle à retenir :** chaque utilisateur qui veut lancer `kubectl` doit avoir **son propre** kubeconfig dans **son propre** `$HOME/.kube/config`, ou définir `$KUBECONFIG` vers un fichier accessible.
+>
+> | Utilisateur | Kubeconfig utilisé |
+> |---|---|
+> | `ubuntu-server-01` | `/home/ubuntu-server-01/.kube/config` (créé à l'étape 6.1) |
+> | `root` | `/root/.kube/config` (n'existe pas par défaut) |
+> | N'importe qui avec `KUBECONFIG` | `$KUBECONFIG` (prioritaire sur `~/.kube/config`) |
+
+---
+
+**Résolution retenue dans ce laboratoire :** Option 1 (`exit` pour revenir à `ubuntu-server-01`). Le cluster répond correctement, les trois nœuds sont `Ready`.
+
+
+
+
+
+
+
 Examiner le runtime, le CNI et les événements Kubernetes, puis vérifier qu'un seul CNI est installé avec le bon CIDR (point 4).
 
 **10. Points d'attention — Résumé global**
@@ -1241,127 +1325,41 @@ helm install rancher rancher-latest/rancher \
   --set replicas=1
 ```
 
+Accès : `https://rancher.192.168.189.10.sslip.io:<PORT>` (admin / admin)
 
 
+#### 7.2 - Installation pour une entreprise (haute disponibilité)
 
-##### 7.1.1 - Installer Helm (si ce n'est pas déjà fait)
 
-```bash
-curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-chmod +x get_helm.sh
-sudo ./get_helm.sh
-```
+> [!WARNING]
+> Cette section décrit une installation **HA** (production). Elle nécessite un cluster Kubernetes **dédié** avec **au moins 3 nœuds** et un **load balancer L4** en amont. **Ne l'appliquez pas sur votre lab mono-nœud.**
 
-Vérifier l'installation :
-
-```bash
-helm version
-```
-
-##### 7.1.2 - Ajouter les dépôts Helm
-
-```bash
-helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
-helm repo add jetstack https://charts.jetstack.io
-helm repo update
-```
-
-##### 7.1.3 - Créer le namespace `cert-manager` et installer cert-manager
-
-```bash
-kubectl create namespace cert-manager
-
-helm install cert-manager jetstack/cert-manager \
-  --namespace cert-manager \
-  --set crds.enabled=true
-```
 
 > [!NOTE]
-> Si le namespace existe déjà (réinstallation), l'erreur `AlreadyExists` n'est pas bloquante. Vous pouvez ajouter `2>/dev/null || true` à la fin de `kubectl create namespace cert-manager` pour l'ignorer.
+> Procédure complète : **[`docs/05-rancher-enterprise.md`](docs/05-rancher-enterprise.md)**
 
-##### 7.1.4 - Attendre que cert-manager soit prêt (1 à 2 minutes)
+Différences clés par rapport au lab :
 
-```bash
-kubectl get pods --namespace cert-manager
-```
 
-> [!IMPORTANT]
-> Ne passez à l'étape suivante que lorsque les 3 pods sont en `Running` :
-> - `cert-manager-*`
-> - `cert-manager-cainjector-*`
-> - `cert-manager-webhook-*`
+| Paramètre | Lab (7.1) | Entreprise (7.2) |
+|---|---|---|
+| Dépôt Helm | `rancher-latest` | `rancher-stable` |
+| Réplicas | `1` | `3` (minimum HA) |
+| Anti-affinité | non défini | `required` |
+| Certificats | auto-signé (`rancher`) | `letsEncrypt` ou `secret` |
+| Exposition | NodePort | Load Balancer L4 |
 
-##### 7.1.5 - Créer le namespace `cattle-system` pour Rancher
-
-```bash
-kubectl create namespace cattle-system
-```
-
-##### 7.1.6 - Installer Rancher avec les options pour un lab
-
-```bash
-helm install rancher rancher-latest/rancher \
-  --namespace cattle-system \
-  --set hostname=rancher.192.168.189.10.sslip.io \
-  --set bootstrapPassword=admin \
-  --set service.type=NodePort \
-  --set replicas=1
-```
+#### 7.3 - Alternative : Rancher via Vagrant, VirtualBox et RKE
 
 > [!NOTE]
-> **`--set replicas=1`** : Rancher déploie par défaut 3 replicas. Sur un petit cluster de lab, cela peut causer des problèmes de ressources et empêcher les pods de démarrer. Le réduire à 1 est une pratique courante pour les environnements de test.
+> Procédure complète : **[`docs/rancher-vagrant-virtualBox.md`](docs/rancher-vagrant-virtualBox.md)**
 
-> [!NOTE]
-> **`hostname=rancher.192.168.189.10.sslip.io`** : `sslip.io` est un DNS public qui résout automatiquement `<IP>.sslip.io` vers `<IP>`. C'est indispensable pour que Rancher génère un certificat TLS valide pour un nom de domaine cohérent avec l'accès depuis un navigateur.
+Méthode alternative basée sur Vagrant + RKE, pour comparer avec `kubeadm` + Helm.
 
-##### 7.1.7 - Récupérer le port NodePort attribué à Rancher
+Documentation : [`docs/05-rancher.md`](docs/05-rancher.md), [`docs/05-rancher-enterprise.md`](docs/05-rancher-enterprise.md), [`docs/rancher-vagrant-virtualBox.md`](docs/rancher-vagrant-virtualBox.md)
 
-Kubernetes attribue un port `NodePort` aléatoire (entre 30000 et 32767). Pour le récupérer :
 
-```bash
-kubectl get svc rancher -n cattle-system
-```
 
-La sortie ressemble à ceci. Le port qui nous intéresse est celui de la colonne `PORT(S)` pour le service `https-internal` (dans cet exemple, `30443`) :
-
-```text
-NAME      TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)                      AGE
-rancher   NodePort   10.100.200.300   <none>        80:30880/TCP,443:30443/TCP   2m
-```
-
-**L'URL d'accès finale sera :**
-
-```
-https://rancher.192.168.189.10.sslip.io:<PORT>
-```
-
-> [!IMPORTANT]
-> **Utilisez impérativement le hostname `rancher.192.168.189.10.sslip.io`, pas l'IP `192.168.189.10`.** Le certificat TLS a été généré pour ce hostname. Si vous accédez via l'IP, le navigateur affichera un avertissement de sécurité supplémentaire.
-
-> [!IMPORTANT]
-> **L'accès se fait en HTTPS.** Votre navigateur affichera un avertissement de sécurité car le certificat est auto-signé. Acceptez le risque pour continuer.
-
-##### 7.1.8 - Première connexion à l'interface web
-
-Ouvrez votre navigateur sur l'URL récupérée, puis connectez-vous avec :
-
-- **Utilisateur :** `admin`
-- **Mot de passe :** `admin` (défini par `bootstrapPassword=admin`)
-
-Rancher vous demandera immédiatement de **changer ce mot de passe** pour un mot de passe fort (12 caractères minimum). C'est obligatoire avant de continuer.
-
-##### 7.1.9 - (Optionnel) Fixer le port NodePort
-
-Pour ne pas avoir à chercher le port à chaque fois, patchez le service pour lui attribuer un port fixe :
-
-```bash
-kubectl patch svc rancher -n cattle-system \
-  -p '{"spec":{"ports":[{"port":443,"targetPort":443,"nodePort":30443,"name":"https-internal"}]}}'
-```
-
-L'URL devient alors **`https://rancher.192.168.189.10.sslip.io:30443`**.
-
-<!-- #### 7.2 - (Optionnel) Installer Rancher avec les options pour une entreprise -->
 
 ---
 
@@ -1375,25 +1373,6 @@ L'URL devient alors **`https://rancher.192.168.189.10.sslip.io:30443`**.
 kubectl create namespace cattle-system
 ```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#### 7.2 - cert-manager
 
 
 
