@@ -1,6 +1,6 @@
-# Kubernetes Lab - Ubuntu Server 24.04
+# Kubernetes Lab - Ubuntu Server 26.04 LTS
 
-Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 Workers) sur trois machines virtuelles Ubuntu Server 24.04 LTS sous VMware Workstation avec le réseau NAT (`VMnet8`), puis intégrer Rancher pour l'administration du cluster.
+Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 Workers) sur trois machines virtuelles Ubuntu Server 26.04.1 LTS sous VMware Workstation avec le réseau NAT (`VMnet8`), puis intégrer Rancher pour l'administration du cluster.
 
 > [!NOTE]
 > Les blocs **« Pour aller plus loin »** ne sont pas nécessaires pour réaliser le laboratoire. Ils conservent les méthodes alternatives, les diagnostics détaillés et les explications destinés aux prochains intervenants qui voudront approfondir.
@@ -16,7 +16,6 @@ Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 W
 ![Kubernetes](docs/images/Kubernetes-01.png)
 
 ### Cluster Kubernetes
-
 ![Architecture du cluster Kubernetes](docs/images/Kubernetes-Cluster-01.png)
 ![Cluster Manager](docs/images/Cluster-Manager-01.png)
 
@@ -39,18 +38,31 @@ Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 W
 ### Spécifications de l'environnement
 
 - **Hyperviseur :** VMware Workstation (réseau NAT `VMnet8`)
-- **Système d'exploitation :** Ubuntu Server LTS, sans interface graphique (vérifier la version exacte avec `lsb_release -a`)
+- **Système d'exploitation :** Ubuntu Server 26.04.1 LTS (`resolute`), sans interface graphique (vérifier la version exacte avec `lsb_release -a`)
 - **Sous-réseau NAT :** `192.168.189.0/24` (plage DHCP VMware : `192.168.189.128` à `192.168.189.254`)
 - **Adresse de l'hôte Windows sur VMnet8 :** `192.168.189.1`
 - **Passerelle NAT :** `192.168.189.2`
 - **Plage réservée aux adresses statiques :** `.3` à `.127` (les adresses `.10`, `.11` et `.12` sont hors de la plage DHCP, ce qui évite tout conflit)
 - **Gestionnaire réseau :** Netplan (`/etc/netplan/50-cloud-init.yaml`)
 - **Runtime de conteneurs :** `containerd` (avec `SystemdCgroup = true`)
-- **Outils Kubernetes :** `kubeadm`, `kubelet`, `kubectl` (version à choisir, voir l'étape 5)
+- **Outils Kubernetes :** `kubeadm`, `kubelet`, `kubectl` (v1.30.14 dans ce laboratoire, voir l'étape 5)
 - **Réseau des pods (CNI) :** Flannel, `10.244.0.0/16`
 
 > [!IMPORTANT]
 > Le réseau des pods (`10.244.0.0/16`) ne doit jamais chevaucher le réseau des VM (`192.168.189.0/24`).
+
+### Versions installées
+
+| Composant | Version | Source |
+|---|---|---|
+| Ubuntu Server | 26.04.1 LTS (`resolute`), noyau `7.0.0-38-generic` | ISO officielle |
+| Kubernetes (`kubeadm`, `kubelet`, `kubectl`) | `v1.30.14` | `pkgs.k8s.io/core:/stable:/v1.30/deb` |
+| `containerd` | `2.2.2-0ubuntu1.2` | Dépôt Ubuntu |
+| `runc` | `1.4.0-0ubuntu1` | Dépôt Ubuntu |
+| Flannel | Dernière version publiée au moment de l'installation | GitHub `flannel-io/flannel` |
+
+> [!NOTE]
+> `kubeadm init` affiche `remote version is much newer: v1.37.2; falling back to: stable-1.30`. Ce message est informatif : le dépôt `v1.30` est épinglé et l'installation reste en `v1.30.14`. Cette branche n'est cependant plus maintenue (la `v1.30.14` date de juin 2025) : pour une nouvelle installation, choisir une branche encore supportée.
 
 <details>
 <summary><strong>Pour aller plus loin - Rôle du Control Plane et des Workers</strong></summary>
@@ -120,6 +132,7 @@ kubernetes-lab/
     ├── 05-rancher.md
     ├── 06-validation.md
     ├── 07-troubleshooting.md
+    ├── rancher-vagrant-virtualBox.md
     ├── kubernetes/
     │   └── kubernetes-installation-guide.jpg
     ├── mobaxterm/
@@ -135,6 +148,9 @@ kubernetes-lab/
         ├── favicon/
         ├── creation-de-vm/
         ├── choix-de-l-iso/
+        ├── rancher/
+        │   └── rancher-logo/
+        │       └── rancher-logo.png
         └── network-dns/
             ├── preparer-les-VM/
             ├── vm-settings/
@@ -251,14 +267,7 @@ OpenSSH server permet de se connecter aux VM à distance, par exemple avec MobaX
 
 **Si la VM est déjà installée**, exécuter sur chaque VM :
 
-<!-- ```bash
-sudo apt update
-sudo apt install -y openssh-server
-sudo systemctl enable --now ssh
-sudo systemctl status ssh --no-pager
-``` -->
-
-```shell
+```bash
 sudo apt update
 sudo apt install -y openssh-server
 sudo systemctl enable --now ssh
@@ -549,7 +558,7 @@ Document détaillé : [`docs/02-network-dns.md`](docs/02-network-dns.md)
 
 ### Étape 3 - Préparer le système (prérequis Kubernetes)
 
-À réaliser sur les trois nœuds.
+À réaliser sur les trois nœuds. Un worker neuf ne contient aucun composant Kubernetes : sans cette préparation, `kubelet` ne démarre pas correctement et le `kubeadm join` échoue.
 
 **1. Vérifier les ressources et l'unicité des machines**
 
@@ -597,7 +606,7 @@ sudo sysctl --system
 **5. Vérifier**
 
 ```bash
-free -h
+free -h | grep -i swap        # Swap: 0B 0B 0B
 lsmod | grep -E 'overlay|br_netfilter'
 sysctl net.ipv4.ip_forward
 ```
@@ -732,7 +741,7 @@ Le service doit répondre `active` et la ligne doit afficher `SystemdCgroup = tr
 
 La structure du fichier `config.toml` diffère entre `containerd` 1.x et 2.x : la ligne `SystemdCgroup` se trouve dans la section du runtime `runc`, sous une arborescence qui change selon la version. Ne pas la copier à un emplacement arbitraire : modifier la ligne existante, comme le fait la commande `sed`.
 
-`containerd` peut aussi être installé depuis les paquets maintenus par son éditeur plutôt que depuis les dépôts Ubuntu. Dans ce cas, vérifier la compatibilité avec Ubuntu 24.04 et éviter de mélanger plusieurs sources de paquets.
+Dans ce laboratoire, le paquet Ubuntu `containerd` (`2.2.2-0ubuntu1.2`) est installé sur les trois nœuds. La documentation de Kubernetes cite aussi le paquet `containerd.io` du dépôt Docker : les deux conviennent tant que `SystemdCgroup = true` et que la **même source** est utilisée sur tous les nœuds. Éviter de mélanger plusieurs sources de paquets.
 
 </details>
 
@@ -752,7 +761,7 @@ La structure du fichier `config.toml` diffère entre `containerd` 1.x et 2.x : l
 À réaliser sur les trois nœuds. Choisir la version de Kubernetes et remplacer `v1.30` dans les commandes ci-dessous par la version souhaitée. Utiliser la **même branche mineure** de Kubernetes sur les trois machines.
 
 > [!WARNING]
-> Vérifier sur la documentation officielle quelle version est encore supportée avant d'installer : `v1.30` est donnée ici à titre d'exemple et peut ne plus être maintenue. Les versions de `kubeadm`, `kubelet` et `kubectl` doivent être compatibles entre elles.
+> Vérifier sur la documentation officielle quelle version est encore supportée avant d'installer. Ce laboratoire a été réalisé avec `v1.30.14`, dont la branche n'est plus maintenue : elle sert ici d'exemple. Les versions de `kubeadm`, `kubelet` et `kubectl` doivent être compatibles entre elles.
 
 > [!NOTE]
 > L'ancien dépôt `apt.kubernetes.io` (`kubernetes-xenial`) est **obsolète et supprimé**. Il faut utiliser le dépôt `pkgs.k8s.io`, comme dans les commandes ci-dessous.
@@ -807,13 +816,28 @@ sudo apt-get update
 
 #### 5.4 - Installer `kubeadm`, `kubelet` et `kubectl`
 
+`kubectl` ne se lance que sur le Control Plane : les Workers n'ont besoin que de `kubelet` et `kubeadm`.
+
+**Sur le Control Plane**
+
 ```bash
 sudo apt-get install -y kubelet kubeadm kubectl
 sudo apt-mark hold kubelet kubeadm kubectl
 sudo systemctl enable --now kubelet
 ```
 
+**Sur chaque Worker**
+
+```bash
+sudo apt-get install -y kubelet kubeadm
+sudo apt-mark hold kubelet kubeadm
+sudo systemctl enable --now kubelet
+```
+
 `apt-mark hold` empêche une mise à jour automatique accidentelle des composants. `systemctl enable --now kubelet` active `kubelet` au démarrage et le lance tout de suite.
+
+> [!NOTE]
+> Avant le `kubeadm join`, `kubelet` affiche `activating (auto-restart)` : c'est normal. Il redémarre en boucle tant qu'il n'a pas de configuration, et se stabilise après la jonction au cluster.
 
 > [!TIP]
 > En cas d'erreur liée à des versions installées avec Snap, les supprimer d'abord :
@@ -826,14 +850,14 @@ Vérifier les versions installées :
 
 ```bash
 kubeadm version
-kubectl version --client
 kubelet --version
+kubectl version --client      # Control Plane uniquement
 ```
 
 <details>
 <summary><strong>Pour aller plus loin - Activer l'autocomplétion de kubectl</strong></summary>
 
-L'autocomplétion permet de compléter les commandes et les noms de ressources avec la touche Tab :
+L'autocomplétion permet de compléter les commandes et les noms de ressources avec la touche Tab (sur le Control Plane) :
 
 ```bash
 sudo apt install -y bash-completion
@@ -842,6 +866,19 @@ source ~/.bashrc
 ```
 
 </details>
+
+#### 5.5 - Vérifier un nœud avant de continuer
+
+Sur chaque nœud, avant `kubeadm init` ou `kubeadm join` :
+
+```bash
+systemctl is-active containerd                           # active
+systemctl is-enabled kubelet                             # enabled
+sudo grep -i SystemdCgroup /etc/containerd/config.toml   # SystemdCgroup = true
+free -h | grep -i swap                                   # Swap: 0B 0B 0B
+ip -br address                                           # lo et ens33 seulement
+sudo ls -la /etc/cni/net.d/                              # vide, ou seulement .kubernetes-cni-keep
+```
 
 Document détaillé (préparation système, runtime et outils Kubernetes) : [`docs/03-container-runtime.md`](docs/03-container-runtime.md)
 
@@ -874,12 +911,27 @@ Configurer `kubectl` pour l'utilisateur courant :
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
+ls -l $HOME/.kube/config
 ```
+
+> [!IMPORTANT]
+> Recopier ces trois commandes **en entier, avec `sudo`**. `cp admin.conf` ou `chown` lancés sans leurs arguments échouent, et `kubeadm token create` répond alors `permission denied` sur `/etc/kubernetes/admin.conf`.
 
 > [!IMPORTANT]
 > Fixer définitivement les trois adresses IP **avant** `kubeadm init` : le cluster mémorise l'adresse du Control Plane, et la changer ensuite pose problème.
 
+Vérifier que le Control Plane répond :
+
+```bash
+kubectl get nodes
+```
+
+Le nœud est `NotReady` tant qu'aucun CNI n'est installé : c'est normal à ce stade.
+
 #### 6.2 - Installer le plugin réseau (CNI)
+
+> [!CAUTION]
+> Installer **un seul CNI** par cluster. Flannel et Calico gèrent tous les deux le réseau des pods : les installer ensemble rend le réseau instable (nœud `NotReady`, CoreDNS `Pending`).
 
 ##### 6.2.1 - Flannel (retenu pour ce lab, avec `10.244.0.0/16`)
 
@@ -890,9 +942,12 @@ kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/
 Après l'installation du CNI, vérifier la disponibilité des nœuds et l'état des pods système avant de poursuivre :
 
 ```bash
-kubectl get nodes
+kubectl get nodes -w
+kubectl get pods -n kube-flannel
 kubectl get pods -n kube-system
 ```
+
+Le Control Plane doit passer à `Ready` en une à deux minutes (arrêter le `-w` avec `Ctrl + C`), et les pods `coredns` doivent passer à `Running`.
 
 <details>
 <summary><strong>Pour aller plus loin - Choisir un autre CNI</strong></summary>
@@ -911,7 +966,7 @@ Le CNI doit être choisi **avant** `kubeadm init`, afin d'utiliser un CIDR de po
 
 ##### 6.2.2 - Alternative : Calico (opérateur Tigera)
 
-À utiliser **à la place de** Flannel, jamais en plus. L'ancienne méthode `kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml` est **obsolète** : la méthode actuelle passe par l'opérateur Tigera.
+À utiliser **à la place de** Flannel, jamais en plus. Si Flannel est déjà installé, suivre d'abord la procédure de nettoyage du dépannage (point 1) avant de passer à Calico. L'ancienne méthode `kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml` est **obsolète** : la méthode actuelle passe par l'opérateur Tigera.
 
 > [!CAUTION]
 > Le guide d'origine utilise `--pod-network-cidr=192.168.0.0/16`. Ce réseau **chevauche** celui des VM (`192.168.189.0/24`) et ne doit pas être utilisé dans ce laboratoire. Choisir un réseau de pods distinct, par exemple `10.244.0.0/16`, le passer à `kubeadm init --pod-network-cidr=...`, puis utiliser **la même valeur** dans le champ `cidr` de `custom-resources.yaml`.
@@ -922,56 +977,29 @@ Le CNI doit être choisi **avant** `kubeadm init`, afin d'utiliser un CIDR de po
 kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/tigera-operator.yaml
 ```
 
-**b) Télécharger les ressources personnalisées, modifier le champ `cidr`, puis les appliquer**
+**b) Télécharger les ressources personnalisées**
 
 ```bash
 curl -O https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/custom-resources.yaml
-nano custom-resources.yaml     # remplacer cidr: 192.168.0.0/16 par le réseau de pods choisi
-kubectl create -f custom-resources.yaml
 ```
 
-> [!CAUTION] 
-> il faut remplacer 192.168.0.0/16 par 10.244.0.0/16, car on as initialisé Kubernetes avec --pod-network-cidr=10.244.0.0/16
-
----
-1. Vérifier l'état de Flannel
-
-Sur ton Control Plane, exécute :
-
-```bash
-kubectl get pods -n kube-flannel
-kubectl get pods -n kube-system
-kubectl get nodes -o wide
-```
-
-2. Si tu souhaites finalement utiliser Calico
-
-Dans ce cas, le CIDR à utiliser dans custom-resources.yaml est bien :
-
-```bash
-cidr: 10.244.0.0/16
-```
-
-
-Pour le modifier :
+**c) Modifier le champ `cidr`**, car Calico utilise `192.168.0.0/16` par défaut :
 
 ```bash
 nano custom-resources.yaml
 ```
 
-Repère la ligne :
+Repérer la ligne `cidr: 192.168.0.0/16` et la remplacer par `cidr: 10.244.0.0/16`, la valeur passée à `kubeadm init`. Enregistrer, puis vérifier avant d'appliquer :
 
 ```bash
-cidr: 192.168.0.0/16
+grep cidr custom-resources.yaml     # cidr: 10.244.0.0/16
+kubectl create -f custom-resources.yaml
 ```
 
-Remplace-la par :
+> [!IMPORTANT]
+> Un décalage entre le `--pod-network-cidr` de `kubeadm init` et le `cidr` de Calico empêche les pods d'obtenir une adresse IP et laisse le nœud en `NotReady`.
 
-```bash
-cidr: 10.244.0.0/16
-```
-
-**c) Vérifier que Calico fonctionne** et attendre que tous les pods soient `Running` avant de continuer
+**d) Vérifier que Calico fonctionne** et attendre que tous les pods soient `Running` avant de continuer
 
 ```bash
 watch kubectl get pods -n calico-system
@@ -982,56 +1010,143 @@ watch kubectl get pods -n calico-system
 
 #### 6.3 - Joindre les Workers
 
-Sur le Control Plane, générer la commande de jonction :
+Sur le **Control Plane**, générer la commande de jonction :
 
 ```bash
 kubeadm token create --print-join-command
 ```
 
-Puis l'exécuter avec `sudo` sur `k8s-worker-01` et `k8s-worker-02` :
+Copier la **ligne entière** affichée, ajouter `sudo` devant, et l'exécuter **sur chaque Worker**, l'un après l'autre. Elle prend la forme suivante :
 
 ```bash
 sudo kubeadm join 192.168.189.10:6443 --token <TOKEN> --discovery-token-ca-cert-hash sha256:<HASH>
 ```
 
+> [!IMPORTANT]
+> `<TOKEN>` et `<HASH>` sont des **espaces réservés** : ils doivent être remplacés par les vraies valeurs affichées par le Control Plane. Les recopier tels quels provoque `syntax error near unexpected token 'newline'`, car le shell lit `<` et `>` comme des redirections.
+
+> [!IMPORTANT]
+> `kubeadm join` ne se lance **que sur les Workers**. Sur un Control Plane déjà initialisé, ou sur un Worker déjà joint, il échoue au contrôle préalable avec `/etc/kubernetes/kubelet.conf already exists` et `Port 10250 is in use` : c'est le comportement attendu, et la preuve que le nœud est déjà en place. Sans `sudo`, l'erreur est `user is not running as root`.
+
+Sortie attendue sur le Worker :
+
+```text
+This node has joined the cluster:
+* Certificate signing request was sent to apiserver and a response was received.
+* The Kubelet was informed of the new secure connection details.
+```
+
+Vérifier ensuite **depuis le Control Plane** :
+
+```bash
+kubectl get nodes
+```
+
 > [!CAUTION]
-> Ne publie jamais dans le dépôt une commande `kubeadm join` contenant son jeton, une clé privée SSH, un mot de passe ou un kubeconfig sensible.
+> Ne publie jamais dans le dépôt une commande `kubeadm join` contenant son jeton, une clé privée SSH, un mot de passe ou un kubeconfig sensible. Un jeton expire au bout de 24 heures : `kubeadm token list` les affiche, et `kubeadm token delete <identifiant>` en supprime un.
 
 <details>
 <summary><strong>Pour aller plus loin - Dépannage du cluster</strong></summary>
 
-**1. Réinitialiser le nœud** si l'installation échoue, puis recommencer :
+**1. Réinitialiser un nœud et nettoyer complètement**
+
+`kubeadm reset` ne nettoie **ni** la configuration CNI, **ni** les interfaces réseau, **ni** les règles `iptables`, **ni** le kubeconfig. Après un reset, nettoyer le nœud :
 
 ```bash
 sudo kubeadm reset -f
-sudo rm -rf $HOME/.kube
+sudo rm -rf /etc/cni/net.d/* /var/lib/cni/ $HOME/.kube
+sudo ip link delete cni0      2>/dev/null || true
+sudo ip link delete flannel.1 2>/dev/null || true
+sudo systemctl restart containerd
 sudo iptables -F && sudo iptables -t nat -F && sudo iptables -t mangle -F && sudo iptables -X
 ```
 
-> [!WARNING]
-> Ces commandes effacent la configuration Kubernetes et les règles `iptables` du nœud où elles sont exécutées. À lancer uniquement sur la machine à réinitialiser.
+Si le cluster utilise IPVS, ajouter `sudo ipvsadm --clear`.
 
-**2. Consulter les journaux** pour comprendre une erreur :
+> [!WARNING]
+> Ces commandes effacent la configuration Kubernetes et les règles `iptables` du nœud où elles sont exécutées. À lancer uniquement sur la machine à réinitialiser, et jamais pour « réessayer » un `kubeadm join` : un Worker déjà joint n'a pas besoin d'être réinitialisé.
+
+**2. Reconstruire le Control Plane après un reset**
+
+Une fois le nettoyage du point 1 fait :
 
 ```bash
-journalctl -xeu kubelet
+sudo kubeadm init \
+  --apiserver-advertise-address=192.168.189.10 \
+  --pod-network-cidr=10.244.0.0/16
+
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+kubectl get nodes
+kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+kubectl get nodes -w
+kubectl get pods -A
+```
+
+Régénérer ensuite la commande de jonction (point 6). Les Workers déjà joints à l'ancien cluster doivent eux aussi être réinitialisés (point 1) avant de rejoindre le nouveau.
+
+**3. `kubectl` répond `The connection to the server localhost:8080 was refused`**
+
+Le message d'erreur indique que `kubectl` essaie de se connecter à `localhost:8080`, mais qu'aucun serveur Kubernetes ne répond à cette adresse. Bonne nouvelle : cela ne signifie pas nécessairement que le cluster est en panne — il est possible que la configuration de `kubectl` ne soit plus chargée dans la session SSH.
+
+Ce n'est pas un problème de réseau ni de `kubelet`. `kubectl` retombe sur son adresse par défaut `localhost:8080` quand il ne trouve pas de kubeconfig. Examiner la situation :
+
+```bash
+ls -l ~/.kube/config
+echo "$KUBECONFIG"
+sudo ls -l /etc/kubernetes/admin.conf
+```
+
+- Si `/etc/kubernetes/admin.conf` existe, le cluster est intact et seul le kubeconfig manque : le recréer.
+
+```bash
+mkdir -p "$HOME/.kube"
+sudo cp /etc/kubernetes/admin.conf "$HOME/.kube/config"
+sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
+export KUBECONFIG="$HOME/.kube/config"
+kubectl cluster-info
+kubectl get nodes -o wide
+kubectl get pods -n kube-flannel
+```
+
+- Si `/etc/kubernetes/` ne contient plus que des dossiers `manifests` et `pki` vides, le cluster a été détruit par un `kubeadm reset` : le reconstruire (point 2).
+
+Dans le doute, ne pas relancer `kubeadm init` avant d'avoir regardé l'état de `kubelet` et des conteneurs :
+
+```bash
+sudo systemctl status kubelet --no-pager
+sudo crictl --runtime-endpoint unix:///run/containerd/containerd.sock ps -a
+```
+
+**4. Un seul CNI, avec le bon CIDR**
+
+Ne jamais mélanger Flannel et Calico. Pour changer de CNI plus tard : `kubeadm reset`, nettoyage complet (point 1), puis installation de l'autre CNI. Le `--pod-network-cidr` de `kubeadm init` doit correspondre au CIDR attendu par le CNI : `10.244.0.0/16` pour Flannel, et la valeur du champ `cidr` de `custom-resources.yaml` pour Calico.
+
+**5. Consulter les journaux**
+
+```bash
+journalctl -xeu kubelet --no-pager
 kubectl describe pod <nom-du-pod> -n kube-system
 ```
 
-**3. Régénérer la commande de jonction** quand le jeton a expiré (les jetons expirent après 24 heures). À exécuter sur le Control Plane :
+Des lignes se terminant par `drive>` ou `plugi>` sont simplement **tronquées par l'affichage du terminal** (pagination de `journalctl`) : elles ne sont pas la cause d'un `NotReady`. L'option `--no-pager` évite cette troncature pour `journalctl`, et `-l` fait de même pour `systemctl status`.
+
+**6. Régénérer la commande de jonction** quand le jeton a expiré (les jetons expirent après 24 heures). À exécuter sur le Control Plane :
 
 ```bash
 kubeadm token create --print-join-command
 ```
 
-**4. `containerd` est inactif**
+**7. `containerd` est inactif**
 
 ```bash
 sudo systemctl status containerd --no-pager
 sudo journalctl -u containerd -n 100 --no-pager
 ```
 
-**5. Un Worker ne rejoint pas le cluster**
+**8. Un Worker ne rejoint pas le cluster**
 
 ```bash
 ip route
@@ -1043,7 +1158,7 @@ sudo journalctl -u kubelet -n 100 --no-pager
 
 `nc -vz` teste l'accès TCP au port `6443` du Control Plane. Vérifier aussi les règles de pare-feu et les paramètres de la commande `kubeadm join`.
 
-**6. Les nœuds restent `NotReady`**
+**9. Les nœuds restent `NotReady`**
 
 ```bash
 kubectl get nodes -o wide
@@ -1051,263 +1166,33 @@ kubectl get pods -A
 kubectl describe node k8s-worker-01
 ```
 
-Examiner le runtime, le CNI et les événements Kubernetes.
+Examiner le runtime, le CNI et les événements Kubernetes, puis vérifier qu'un seul CNI est installé avec le bon CIDR (point 4).
 
-<h2>
-  Diagnostic
-</h2>
-
-À la fin de votre session, kubectl peux échoue avec :
-
-```text
-The connection to the server localhost:8080 was refused
-```
-
-Ce n'est pas un problème de réseau ni de kubelet : c'est la conséquence directe de deux commandes que vous avez lancées juste avant :
-
-```bash
-sudo kubeadm reset -f
-sudo rm -rf $HOME/.kube
-```
-
-
-- `kubeadm reset -f a` **détruit le control-plane** (arrêt de kubelet, suppression de `/etc/kubernetes/*`, de `/var/lib/etcd`, des manifests statiques…). Il n'y a donc plus d'API server sur `192.168.189.10:6443`.
-- `rm -rf $HOME/.kube` a **supprimé le kubeconfig**. Sans kubeconfig, `kubectl` retombe sur son endpoint par défaut `http://localhost:8080`, où plus rien n'écoute → `connection refused`.
-
-Le cluster est donc dans l'état « reset », et vous essayez de l'interroger. C'est normal que ça échoue.
-
-**La cause probable du reset : deux CNI installés**
-
-Dans la session, vous avez appliqué **Flannel** :
-
-```bash
-kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
-```
-
-puis **Calico** par-dessus :
-
-```bash
-kubectl create -f .../tigera-operator.yaml
-kubectl create -f custom-resources.yaml
-```
-
-C'est la vraie erreur de fond. Flannel et Calico gèrent tous les deux le réseau des pods (interfaces `cni0`, routes, règles iptables, BGP/VXLAN…). Les installer simultanément produit un réseau instable : c'est très probablement pourquoi le nœud restait `NotReady`, que CoreDNS était `Pending`, et que vous avez fini par faire un `reset`.
-
-Il faut choisir UN seul CNI.
-
-
-**Ce que vous devez faire maintenant**
-
-1. **Nettoyer les restes du reset**
-
-`kubeadm reset` ne nettoie **pas** la config CNI ni les conteneurs containerd, comme il vous l'a lui-même indiqué. Il faut donc :
-
-```bash
-sudo rm -rf /etc/cni/net.d
-sudo rm -rf /var/lib/cni/
-sudo rm -rf $HOME/.kube
-sudo systemctl restart containerd
-sudo systemctl restart kubelet
-
-# si vous utilisez IPVS :
-sudo ipvsadm --clear 2>/dev/null || true
-
-# iptables (déjà fait chez vous, mais à refaire après le restart)
-sudo iptables -F && sudo iptables -t nat -F && sudo iptables -t mangle -F && sudo iptables -X
-```
-
-Le `systemctl restart containerd` est important : dans vos logs on voit encore des shims et sandboxes en cours de démontage (`exit_status:137`), ce sont les conteneurs tués par le reset. Un restart repart propre.
-
-2. **Réinitialiser le control-plane**
-
-```bash
-sudo kubeadm init \
-  --apiserver-advertise-address=192.168.189.10 \
-  --pod-network-cidr=10.244.0.0/16
-```
-
-
-Puis reconfigurer le kubeconfig utilisateur :
-
-```bash
-mkdir -p $HOME/.kube
-sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-sudo chown $(id -u):$(id -g) $HOME/.kube/config
-```
-
-3. **Installer un seul CNI**
-
-
-**Option A — Flannel** (le CIDR `10.244.0.0/16` correspond par défaut) :
-
-
-```bash
-kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
-```
-
-**Option B — Calico** (v3.31.4, comme vous avez commencé) :
-
-
-```bash
-kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/tigera-operator.yaml
-curl -O https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/custom-resources.yaml
-# Éditer custom-resources.yaml : cidr doit être 10.244.0.0/16 (et non 192.168.0.0/16)
-kubectl create -f custom-resources.yaml
-
-```
+**10. Points d'attention — Résumé global**
 
 > [!CAUTION]
-> Dans l'option B, vérifiez bien que `custom-resources.yaml` contient `cidr: 10.244.0.0/16` **avant** de l'appliquer (c'est ce que vous faisiez avec `nano`, mais le contenu final n'apparaît pas dans le log — assurez-vous que la modification a bien été enregistrée).
-
-
-
-4. **Vérifier**
-
-```bash
-kubectl get nodes -o wide
-kubectl get pods -A
-```
-
-Le nœud doit passer à `Ready` en 1–2 minutes après l'application du CNI, et CoreDNS doit passer `Running`.
-
-
-
-5. **Régénérer la commande de join pour les workers**
-
-```bash
-kubeadm token create --print-join-command
-```
-
-Puis exécuter cette commande sur `k8s-worker-01` (et les autres workers).
+> **Ne mélangez jamais Flannel et Calico.** Si vous voulez changer de CNI plus tard, refaites `kubeadm reset` **puis** le nettoyage complet (`/etc/cni/net.d`, `/var/lib/cni`, règles `iptables`) **avant** d'installer l'autre CNI.
 
 > [!CAUTION]
-> **Ne mélangez jamais Flannel et Calico.**
-> Si vous voulez changer de CNI plus tard, refaites `kubeadm reset` **puis** le nettoyage complet (`/etc/cni/net.d`, `/var/lib/cni`, règles iptables) **avant** d'installer l'autre CNI.
-
-> [!CAUTION]
-> **Le** `--pod-network-cidr` **de** `kubeadm init` **doit correspondre au CIDR attendu par le CNI.**
-> 
+> **Le `--pod-network-cidr` de `kubeadm init` doit correspondre au CIDR attendu par le CNI.**
 > - **Flannel** attend `10.244.0.0/16` par défaut.
-> - **Calico** via `custom-resources.yaml` attend le CIDR que vous y mettez (souvent `192.168.0.0/16` par défaut, d'où notre édition avec `nano`).
+> - **Calico** via `custom-resources.yaml` attend le CIDR que vous y mettez (souvent `192.168.0.0/16` par défaut, d'où l'édition avec `nano`).
 > Un décalage entre ces deux valeurs empêche les pods d'obtenir une IP et laisse le nœud en `NotReady`.
 
 > [!CAUTION]
-> **Les erreurs** `drive>` **/** `plugi>` **dans** `journalctl -xeu kubelet` **ne sont pas la cause du** `NotReady`.
-> Elles sont simplement **tronquées par le terminal** (largeur d'affichage) et datent du **moment du reset** (arrêt forcé des conteneurs). Ne les prenez pas pour la cause initiale du problème.
+> **Les erreurs `drive>` / `plugi>` dans `journalctl -xeu kubelet` ne sont pas la cause du `NotReady`.** Elles sont simplement **tronquées par le terminal** (largeur d'affichage) et datent du **moment du reset** (arrêt forcé des conteneurs). Ne les prenez pas pour la cause initiale du problème.
 
 > [!CAUTION]
-> **Après un** `kubeadm reset`**, nettoyez toujours la config CNI et redémarrez containerd.**
->
-> ```bach
+> **Après un `kubeadm reset`, nettoyez toujours la config CNI et redémarrez containerd.**
+> ```bash
 > sudo rm -rf /etc/cni/net.d
 > sudo rm -rf /var/lib/cni/
 > sudo systemctl restart containerd
 > ```
->
 > Sinon un **ancien CNI fantôme** peut empêcher le nouveau cluster de démarrer correctement.
 
-> [!CAUTION]
-> **En résumé :** votre `kubectl` échoue simplement parce que **le cluster n'existe plus** (`kubeadm reset` + suppression de `$HOME/.kube`).
-> Réinitialisez proprement, **choisissez un seul CNI**, et le cluster repartira.
-
----
-
-**Variante : un seul bloc `[[!WARNING]` global**
-
-Si vous préférez tout regrouper dans une seule admonition :
-
-
 > [!WARNING]
-> **Points d'attention**
-> 1. **Ne mélangez jamais Flannel et Calico.** Pour changer de CNI plus tard : `kubeadm reset` + nettoyage (`/etc/cni/net.d`, `/var/lib/cni`, iptables) avant d'installer l'autre.
-> 2. `--pod-network-cidr` **doit correspondre au CIDR du CNI**. Flannel attend `10.244.0.0/16` ; Calico attend celui défini dans `custom-resources.yaml` (souvent `192.168.0.0/16`).
-> 3. **Les erreurs** `drive>` / `plugi>` **dans** `journalctl -xeu kubelet` sont tronquées par le terminal et datent du reset — ce n'est pas la cause initiale du `NotReady`.
-> 4. **Après** `kubeadm reset`, toujours `rm -rf /etc/cni/net.d` + `systemctl restart containerd`, sinon un CNI fantôme bloque le redémarrage.
-> 
-> **En résumé :** `kubectl` échoue parce que le cluster n'existe plus. Réinitialisez proprement, choisissez `un seul CNI`, et le cluster repartira.
-
-
----
-
-
-> [!IMPORTANT]
-> Le message d'erreur indique que `kubectl` essaie de se connecter à `localhost:8080`, mais qu'aucun serveur Kubernetes ne répond à cette adresse.
-> 
-> **Bonne nouvelle : cela ne signifie pas nécessairement que ton cluster Kubernetes est en panne.** Il est possible que la configuration de `kubectl` ne soit plus chargée dans ta session SSH.
-> 
-> Nous allons vérifier cela sans réinitialiser ton cluster.
-> 
-> 
-> ***Étape 1 — Vérifier le fichier de configuration***
-> Sur ton Control Plane `192.168.189.10`, exécute :
-> 
-> ```bach
-> ls -l ~/.kube/config
-> ```
-> 
-> Puis :
-> 
-> ```bach
-> echo "$KUBECONFIG"
-> ``` 
-> 
-> Enfin :
-> 
-> ```bach
-> sudo ls -l /etc/kubernetes/admin.conf
-> ``` 
-> Le fichier `/etc/kubernetes/admin.conf` a été créé avec succès lors de l'initialisation du cluster.
->
-> ***Étape 2 — Reconfigurer kubectl***
-> Si `/etc/kubernetes/admin.conf` existe, exécute ces commandes dans ta session SSH :
-> 
-> ```bach
-> mkdir -p "$HOME/.kube"
-> sudo cp /etc/kubernetes/admin.conf "$HOME/.kube/config"
-> sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
-> export KUBECONFIG="$HOME/.kube/config"
-> ```
-> 
-> Puis teste la connexion : 
-> 
-> ```bach
-> kubectl cluster-info
-> ```
-> Si la connexion fonctionne, affiche les nœuds :
-> ```bach
-> kubectl get nodes -o wide
-> ```
-> Et les Pods du réseau Flannel :
-> 
-> ```bach
-> kubectl get pods -n kube-flannel
-> ```
-> 
-> **Pourquoi cette erreur est-elle apparue ?**
-> Lors de l'initialisation de Kubernetes, tu as exécuté :
-> 
-> ```bach
-> mkdir -p $HOME/.kube
-> sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-> sudo chown $(id -u):$(id -g) $HOME/.kube/config
-> ```
-> Ces commandes configurent `kubectl` pour communiquer avec le serveur Kubernetes. Si le fichier est absent, inaccessible ou si une variable d'environnement modifie sa configuration, `kubectl` peut essayer d'utiliser une adresse par défaut comme `localhost:8080`.
-> 
-> L'erreur actuelle ne permet pas encore de savoir laquelle de ces situations s'est produite.
-> 
-> **Étape 3 — Si l'erreur persiste**
-> Exécute :
-> ```bach
-> sudo systemctl status kubelet --no-pager
-> ``` 
-> Puis :
-> ```bach
-> sudo crictl ps
-> ```
-> Ces commandes nous aideront à vérifier si les composants du Control Plane fonctionnent.
-> 
-> **Pour l'instant, ne relance pas `kubeadm init` et ne supprime aucun composant Kubernetes.**
-
+> **En résumé :** `kubectl` échoue parce que le cluster n'existe plus. Réinitialisez proprement, choisissez **un seul CNI**, et le cluster repartira.
 
 </details>
 
@@ -1317,9 +1202,15 @@ Document détaillé : [`docs/04-kubernetes.md`](docs/04-kubernetes.md)
 
 ### Étape 7 - Installer Rancher
 
+---
+
+![Rancher](docs/images/rancher/rancher-logo/rancher-logo.png)
+
+---
+
 Pour ce laboratoire, étudier l'installation de Rancher sur Kubernetes avec Helm. Avant le déploiement, vérifier les prérequis officiels, installer Helm sur le poste d'administration (ou une machine ayant accès au cluster) et préparer l'accès HTTPS avec un certificat adapté.
 
-Trame de la méthode Helm (à adapter aux versions et au nom d'hôte choisi) :
+#### 7.1 - Configuration locale de Rancher avec Helm
 
 ```bash
 helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
@@ -1336,6 +1227,25 @@ helm install rancher rancher-latest/rancher \
   --namespace cattle-system \
   --set hostname=rancher.<votre-domaine-ou-ip>
 ```
+
+#### 7.2 - Pour aller plus loin — Rancher avec Vagrant, VirtualBox et RKE
+
+Une méthode alternative de déploiement local de Kubernetes et de Rancher est documentée ici :
+
+- [Configuration locale de Rancher avec Vagrant, VirtualBox et RKE](docs/rancher-vagrant-virtualBox.md)
+
+Cette approche repose sur :
+
+| Technologie | Rôle |
+|---|---|
+| Vagrant | Automatisation de la création des machines virtuelles |
+| RKE | Déploiement du cluster Kubernetes |
+| Rancher | Administration du cluster Kubernetes |
+
+Références :
+
+- [Dépôt GitHub original](https://github.com/SUSE-Rancher-Community/local-setup-of-rancher-with-rke)
+- [Documentation de RKE](https://rke.docs.rancher.com/installation)
 
 <details>
 <summary><strong>Pour aller plus loin - Rancher en conteneur Docker unique</strong></summary>
@@ -1369,6 +1279,31 @@ kubectl get pods -o wide
 kubectl delete deployment nginx-test
 ```
 
+**Résultat obtenu lors du laboratoire**
+
+```text
+NAME                STATUS   ROLES           AGE     VERSION
+k8s-control-plane   Ready    control-plane   35m     v1.30.14
+k8s-worker-01       Ready    <none>          7m      v1.30.14
+k8s-worker-02       Ready    <none>          7m      v1.30.14
+```
+
+Pods système attendus, tous en `Running` :
+
+```text
+NAMESPACE      NAME                                        READY   STATUS
+kube-flannel   kube-flannel-ds-*  (x3)                     1/1     Running
+kube-system    coredns-*          (x2)                     1/1     Running
+kube-system    etcd-k8s-control-plane                      1/1     Running
+kube-system    kube-apiserver-k8s-control-plane            1/1     Running
+kube-system    kube-controller-manager-k8s-control-plane   1/1     Running
+kube-system    kube-proxy-*       (x3)                     1/1     Running
+kube-system    kube-scheduler-k8s-control-plane            1/1     Running
+```
+
+> [!NOTE]
+> Juste après la jonction, un Worker peut apparaître `NotReady` pendant une à deux minutes, et ses pods `kube-proxy` redémarrer une ou deux fois : le temps que Flannel et `kube-proxy` s'installent. Relancer `kubectl get nodes` avant de conclure à un problème.
+
 Document détaillé : [`docs/06-validation.md`](docs/06-validation.md)
 
 ---
@@ -1377,7 +1312,7 @@ Document détaillé : [`docs/06-validation.md`](docs/06-validation.md)
 
 Pour chaque incident, noter : le message d'erreur exact, la machine concernée, les commandes de diagnostic, la cause confirmée si elle est connue, la correction et le résultat après correction.
 
-Incidents déjà rencontrés pendant ce laboratoire :
+#### 9.1 - Incidents liés aux VM et au réseau (phase de préparation)
 
 | Symptôme | Cause confirmée | Correction |
 |---|---|---|
@@ -1387,11 +1322,390 @@ Incidents déjà rencontrés pendant ce laboratoire :
 | `Permissions for /etc/netplan/…yaml are too open` | Droits trop larges sur le fichier | `sudo chmod 600 /etc/netplan/*.yaml` |
 | `Temporary failure in name resolution` | DNS absent ou réseau non fonctionnel | Vérifier la passerelle, puis la section `nameservers` |
 | Ping vers `1.1.1.1` sans réponse alors qu'`apt update` fonctionne | ICMP filtré par le NAT | Tester avec `apt update` ou `curl` plutôt qu'avec `ping` |
-| `Unit containerd.service could not be found` | `containerd` non installé (paquets non téléchargés faute de réseau) | Rétablir le réseau, puis `sudo apt install -y containerd` |
+| `Unit containerd.service could not be found` | `containerd` non installé (paquets non téléchargés faute de réseau, ou Worker neuf) | Rétablir le réseau, puis `sudo apt install -y containerd` (étape 4) |
 | Login ou mot de passe refusé sur une VM neuve | Clavier QWERTY choisi à l'installation | Réinstaller en choisissant la disposition **French** |
 | Plusieurs VM avec le même nom ou le même `machine-id` | VM clonée sans personnalisation | `hostnamectl set-hostname`, puis régénérer le `machine-id` |
 | `Network error: Connection refused` dans MobaXterm | OpenSSH server non installé sur la VM, rien n'écoute sur le port 22 | Installer et démarrer OpenSSH (étape 1.5.2) |
 | `Access denied` dans MobaXterm alors que le mot de passe est correct | Nom d'utilisateur erroné : nom d'hôte saisi à la place du compte, ou faute de frappe | Utiliser le compte créé à l'installation (`ubuntu-server-01`, `ubuntu-worker-01`…) |
+
+#### 9.2 - Erreurs de cluster rencontrées lors du déploiement réel
+
+Le détail complet (E1→E13) est documenté dans le bloc ci-dessous. Résumé :
+
+| # | Erreur | Cause | Correction clé |
+|---|---|---|---|
+| E1 | `apt-bet` inconnu | Faute de frappe | `apt-get` |
+| E2 | Cluster `NotReady` | Flannel + Calico ensemble | **Un seul CNI** |
+| E3 | Cluster cassé | `kubeadm reset` prématuré | Nettoyage complet + reconstruction |
+| E4 | `localhost:8080 refused` | Kubeconfig manquant | Recréer `~/.kube/config` |
+| E5 | `drive>` / `plugi>` dans `journalctl` | Terminal MobaXterm trop étroit | `journalctl --no-pager` |
+| E6 | Workers vides | Ubuntu fraîche, rien d'installé | Étape 3, 4, 5.4 (Worker) |
+| E7 | `cp`/`chown` échouent | Arguments manquants + sans `sudo` | Copier les commandes entières |
+| E8 | `syntax error near unexpected token` | Placeholders `<TOKEN>`/`<HASH>` littéraux | Copier la ligne complète du control plane |
+| E9 | Join échoue sur control plane | Un CP ne se joint pas à lui-même | Join **uniquement** sur les workers |
+| E10 | Join échoue (déjà joint) | Rejeu du join | Normal — vérifier avec `kubectl get nodes` |
+| E11 | `kubectl: not found` sur worker | `kubectl` non installé sur les workers | Lancer `kubectl` sur le control plane |
+| E12 | containerd paquet Ubuntu vs `.io` | Choix de paquet | Rester cohérent (paquet Ubuntu + SystemdCgroup) |
+| E13 | Prérequis manquants | Swap, modules, sysctl | Étape 3 |
+
+<details>
+<summary><strong>Pour aller plus loin - Retour d'expérience détaillé du déploiement (E1→E13)</strong></summary>
+
+Ce déroulé reprend, dans l'ordre, chaque erreur rencontrée pendant le déploiement, avec la commande fautive, la sortie exacte, le diagnostic et la résolution. Il est destiné aux prochains intervenants pour éviter de reproduire les mêmes pièges.
+
+### E1 — Faute de frappe `apt-bet`
+
+**Commande :**
+
+```bash
+sudo apt-bet install -y apt-transport-https ca-certificates curl gpg
+```
+
+**Erreur :**
+
+```
+sudo: 'apt-bet': command not found
+```
+
+**Diagnostic :** Faute de frappe (`apt-bet` au lieu de `apt-get`).
+
+**Résolution :**
+
+```bash
+sudo apt-get install -y apt-transport-https ca-certificates curl gpg
+```
+
+---
+
+### E2 — Installation simultanée de Flannel **et** Calico (erreur principale)
+
+**Commandes fautives :**
+
+```bash
+kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/tigera-operator.yaml
+kubectl create -f custom-resources.yaml
+```
+
+**Symptômes :**
+
+- Nœud `k8s-control-plane` resté `NotReady` pendant plusieurs minutes
+- Pods `coredns-*` bloqués en `Pending`
+- Après un `kubeadm reset`, des interfaces `cni0` et `flannel.1` restaient présentes
+- `/etc/cni/net.d/10-flannel.conflist` restait après reset
+
+**Diagnostic :** Flannel et Calico gèrent tous deux le réseau des pods (interfaces, routes, règles iptables/BGP/VXLAN). Les installer **en même temps** produit un réseau instable et empêche les pods système (CoreDNS) de démarrer.
+
+**Résolution :** Choisir **un seul CNI**. Dans ce lab, Flannel a été retenu (CIDR `10.244.0.0/16` déjà aligné avec `kubeadm init`).
+
+```bash
+# Après reset + nettoyage complet :
+kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+# NE PAS appliquer Calico par-dessus.
+```
+
+> [!CAUTION]
+> **Règle absolue : un seul CNI par cluster.** Pour changer plus tard : `kubeadm reset` + nettoyage complet (`/etc/cni/net.d`, `/var/lib/cni`, interfaces `cni0`/`flannel.1`, iptables) **avant** d'installer l'autre.
+
+---
+
+### E3 — `kubeadm reset -f` exécuté par désespoir
+
+**Commandes exécutées :**
+
+```bash
+sudo kubeadm reset -f
+sudo rm -rf $HOME/.kube
+sudo iptables -F && sudo iptables -t nat -F && sudo iptables -t mangle -F && sudo iptables -X
+```
+
+**Conséquences :**
+
+- `/etc/kubernetes/{admin.conf,kubelet.conf,controller-manager.conf,scheduler.conf,super-admin.conf}` supprimés
+- `/etc/kubernetes/manifests` et `/etc/kubernetes/pki` vidés
+- `/var/lib/etcd` supprimé
+- `kubelet.service` arrêté
+- `~/.kube/config` supprimé → `kubectl` devient inutilisable
+
+**Ce que `kubeadm reset` ne nettoie pas** (message explicite dans la sortie) :
+
+- `/etc/cni/net.d/` (config CNI)
+- `/var/lib/cni/`
+- Interfaces réseau `cni0`, `flannel.1`
+- Règles `iptables` et tables IPVS
+- `~/.kube/config` (supprimé manuellement ici)
+
+**Diagnostic :** Ce reset n'était pas nécessaire — le vrai problème était E2 (double CNI). Il a rallongé le debug.
+
+**Résolution :** Nettoyage complet **après** le reset :
+
+```bash
+sudo rm -f /etc/cni/net.d/10-flannel.conflist
+sudo rm -rf /var/lib/cni/
+sudo ip link delete cni0      2>/dev/null || true
+sudo ip link delete flannel.1 2>/dev/null || true
+sudo systemctl restart containerd
+sudo iptables -F && sudo iptables -t nat -F && sudo iptables -t mangle -F && sudo iptables -X
+```
+
+Puis reconstruire le cluster (voir Étape 6.1, ou le dépannage du cluster point 2).
+
+---
+
+### E4 — `kubectl` échoue avec `localhost:8080 refused`
+
+**Erreur :**
+
+```
+The connection to the server localhost:8080 was refused - did you specify the right host or port?
+```
+
+**Diagnostic :**
+
+1. `~/.kube/config` supprimé (par `rm -rf $HOME/.kube`)
+2. Sans kubeconfig, `kubectl` retombe sur l'endpoint par défaut `http://localhost:8080`
+3. Aucun API server n'écoute sur `localhost:8080` → `connection refused`
+
+Ce n'est **pas** un problème réseau ni de kubelet. C'est la conséquence directe de E3.
+
+**Résolution :** Reconstruire le kubeconfig après le `kubeadm init` (voir E7).
+
+---
+
+### E5 — Erreurs tronquées `drive>` / `plugi>` dans `journalctl`
+
+**Sortie (tronquée) :**
+
+```
+kubelet[163456]: E1028 09:54:55.484544 163456 drive>
+kubelet[163456]: E1028 09:54:55.484656 163456 plugi>
+```
+
+**Diagnostic :** Ces lignes sont **tronquées par la largeur du terminal MobaXterm**. Elles correspondent à des erreurs internes de kubelet au moment du `kubeadm reset` (arrêt forcé des conteneurs, `exit_status:137` = SIGKILL). **Ce n'est pas la cause du `NotReady`.** C'est un faux positif visuel.
+
+**Résolution :** Utiliser `journalctl -u kubelet -n 200 --no-pager -l` (option `-l` pour ne pas tronquer) si besoin de lire en entier. Ne pas s'acharner sur ces lignes.
+
+---
+
+### E6 — Workers sans containerd ni kubelet/kubeadm
+
+**Symptômes (sur .11 et .12) :**
+
+```
+Unit containerd.service could not be found.
+ls: impossible d'accéder à '/etc/cni/net.d/' : Aucun fichier ou répertoire de ce type
+```
+
+**Diagnostic :** Les workers étaient des installations Ubuntu 26.04 fraîches — aucun composant Kubernetes n'était installé. Normal, il faut les préparer avant le `join`.
+
+**Résolution :** Préparation standard (voir Étape 3, 4 et 5.4 côté Worker).
+
+---
+
+### E7 — `cp admin.conf` et `chown` exécutés seuls (arguments manquants)
+
+**Commandes fautives :**
+
+```bash
+cp admin.conf
+chown
+```
+
+**Erreurs :**
+
+```
+cp: missing destination file operand after 'admin.conf'
+chown : arguments requis suivants non fournis : <OWNER> <FILE>...
+```
+
+**Diagnostic :** Les commandes ont été recopiées **partiellement**, en oubliant les arguments. Elles ont aussi été lancées **sans `sudo`**.
+
+**Conséquence immédiate :**
+
+```bash
+kubeadm token create --print-join-command
+# failed to load admin kubeconfig: open /etc/kubernetes/admin.conf: permission denied
+```
+
+**Résolution :** Recopier les commandes **intégralement**, avec `sudo` :
+
+```bash
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+ls -l $HOME/.kube/config
+# → -rw------- 1 ubuntu-server-01 ubuntu-server-01 ... /home/ubuntu-server-01/.kube/config
+```
+
+---
+
+### E8 — Placeholders `<TOKEN>` et `<HASH>` copiés littéralement
+
+**Commande fautive :**
+
+```bash
+sudo kubeadm join 192.168.189.10:6443 --token <TOKEN> \
+  --discovery-token-ca-cert-hash sha256:<HASH>
+```
+
+**Erreur :**
+
+```
+-bash: syntax error near unexpected token `newline'
+```
+
+**Diagnostic :** `<TOKEN>` et `<HASH>` sont des **placeholders** à remplacer par les vraies valeurs (renvoyées par `kubeadm token create --print-join-command`). Le shell interprète `<` et `>` comme des redirections de fichiers, d'où l'erreur de syntaxe.
+
+**Résolution :** Copier la **ligne entière** retournée par le control plane, sans la découper :
+
+```bash
+# Sur le control plane :
+kubeadm token create --print-join-command
+# → kubeadm join 192.168.189.10:6443 --token f8ju5r.agguxmhq4sn2xt43 --discovery-token-ca-cert-hash sha256:95966396c0af47321fa7206c06b9c876b7b0cefcdb26c513d53c2f2530ae6af7
+
+# Sur chaque worker, préfixer par sudo et coller tel quel :
+sudo kubeadm join 192.168.189.10:6443 --token f8ju5r.agguxmhq4sn2xt43 --discovery-token-ca-cert-hash sha256:95966396c0af47321fa7206c06b9c876b7b0cefcdb26c513d53c2f2530ae6af7
+```
+
+---
+
+### E9 — `kubeadm join` lancé sur le control plane
+
+**Commande fautive (sur .10) :**
+
+```bash
+sudo kubeadm join 192.168.189.10:6443 --token f8ju5r.agguxmhq4sn2xt43 --discovery-token-ca-cert-hash sha256:95966396c0af47321fa7206c06b9c876b7b0cefcdb26c513d53c2f2530ae6af7
+```
+
+**Erreur :**
+
+```
+[ERROR FileAvailable--etc-kubernetes-kubelet.conf]: /etc/kubernetes/kubelet.conf already exists
+[ERROR Port-10250]: Port 10250 is in use
+[ERROR FileAvailable--etc-kubernetes-pki-ca.crt]: /etc/kubernetes/pki/ca.crt already exists
+```
+
+**Diagnostic :** Un control plane déjà initialisé ne se joint pas à lui-même. Le preflight détecte les fichiers déjà présents et bloque — c'est le comportement attendu. **Aucun dégât.**
+
+**Résolution :** Ne pas exécuter `kubeadm join` sur le control plane. Lancer `kubeadm join` **uniquement** sur les workers.
+
+---
+
+### E10 — `kubeadm join` rejoué sur un worker déjà joint
+
+**Erreur (sur .11 et .12 après un premier join réussi) :**
+
+```
+[ERROR FileAvailable--etc-kubernetes-kubelet.conf]: /etc/kubernetes/kubelet.conf already exists
+[ERROR Port-10250]: Port 10250 is in use
+[ERROR FileAvailable--etc-kubernetes-pki-ca.crt]: /etc/kubernetes/pki/ca.crt already exists
+```
+
+**Diagnostic :** Le worker avait **déjà** rejoint le cluster (message `This node has joined the cluster`). Relancer `kubeadm join` échoue au preflight. **C'est le signe que tout s'est bien passé.**
+
+**Résolution :** Ne rien faire. Ne pas faire `kubeadm reset` pour « réessayer » — cela casserait le nœud. Vérifier depuis le control plane :
+
+```bash
+kubectl get nodes
+```
+
+---
+
+### E11 — `kubectl` exécuté sur les workers
+
+**Erreur (sur .11 / .12) :**
+
+```
+Command 'kubectl' not found, but can be installed with:
+sudo snap install kubectl
+```
+
+**Diagnostic :** Les workers n'ont que `kubelet` + `kubeadm` (pas `kubectl`). C'est volontaire et suffisant. **Toutes les commandes `kubectl` se lancent sur le control plane.**
+
+**Résolution :** Se connecter au control plane (192.168.189.10) pour tout `kubectl`.
+
+---
+
+### E12 — Paquet `containerd` vs `containerd.io` sur les workers
+
+**Contexte :** Sur le control plane, containerd avait été installé manuellement (paquet système Ubuntu, version `2.2.2-0ubuntu1.2`). Sur les workers, `sudo apt-get install -y containerd` a installé exactement le même paquet système.
+
+**Résultat :** Aucun problème. Les deux configs sont compatibles (`SystemdCgroup = true` des deux côtés).
+
+**Note :** La documentation officielle Kubernetes suggère `containerd.io` depuis le dépôt Docker. Le paquet `containerd` d'Ubuntu fonctionne aussi, tant que `SystemdCgroup = true` est configuré. Dans ce lab, on reste sur le paquet Ubuntu pour rester cohérent avec le control plane.
+
+---
+
+### E13 — `swapoff` / modules noyau / sysctl absents sur les workers
+
+**Diagnostic :** Un worker Kubernetes **exige** :
+
+- Swap désactivé (sinon kubelet refuse de démarrer)
+- Modules `overlay` + `br_netfilter` chargés
+- `net.bridge.bridge-nf-call-iptables = 1` et `net.ipv4.ip_forward = 1`
+
+**Résolution (sur chaque worker) :**
+
+```bash
+sudo swapoff -a
+sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
+sudo modprobe overlay && sudo modprobe br_netfilter
+cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
+overlay
+br_netfilter
+EOF
+
+cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-iptables  = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward                 = 1
+EOF
+sudo sysctl --system
+```
+
+**Vérification :**
+
+```bash
+free -h | grep -i swap       # → Swap: 0B 0B 0B
+lsmod | grep -E 'overlay|br_netfilter'
+```
+
+</details>
+
+<details>
+<summary><strong>Pour aller plus loin - Commandes utiles</strong></summary>
+
+**Diagnostic depuis le Control Plane**
+
+```bash
+kubectl get nodes -o wide
+kubectl get pods -A -o wide
+kubectl describe node k8s-worker-01 | tail -30
+kubectl describe pod -n kube-system <nom-du-pod>
+
+sudo systemctl status containerd --no-pager
+sudo systemctl status kubelet --no-pager
+journalctl -u kubelet -n 200 --no-pager
+journalctl -u containerd -n 100 --no-pager
+
+sudo crictl --runtime-endpoint unix:///run/containerd/containerd.sock info
+sudo crictl --runtime-endpoint unix:///run/containerd/containerd.sock ps -a
+sudo ls -la /etc/cni/net.d/
+ip -br address
+```
+
+**Jetons de jonction**
+
+```bash
+kubeadm token create --print-join-command
+kubeadm token list
+kubeadm token delete <identifiant-du-jeton>
+```
+
+Un jeton est valable 24 heures. Pour réinitialiser un nœud, voir le dépannage du cluster (étape 6.3, point 1).
+
+</details>
 
 Document détaillé : [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)
 
@@ -1399,16 +1713,16 @@ Document détaillé : [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)
 
 ## 7. Critères de réussite
 
-- [ ] Les trois VM démarrent correctement.
-- [ ] Les cartes réseau sont en NAT (`VMnet8`).
-- [ ] Les noms d'hôtes sont uniques et corrects.
-- [ ] Les adresses IP sont configurées sans conflit.
-- [ ] Les nœuds communiquent entre eux et accèdent à Internet.
-- [ ] Le runtime fonctionne sur chaque nœud.
-- [ ] Le Control Plane est initialisé.
-- [ ] Les deux Workers ont rejoint le cluster.
-- [ ] `kubectl get nodes -o wide` affiche trois nœuds `Ready`.
-- [ ] Les pods système sont dans un état attendu.
+- [x] Les trois VM démarrent correctement.
+- [x] Les cartes réseau sont en NAT (`VMnet8`).
+- [x] Les noms d'hôtes sont uniques et corrects.
+- [x] Les adresses IP sont configurées sans conflit.
+- [x] Les nœuds communiquent entre eux et accèdent à Internet.
+- [x] Le runtime fonctionne sur chaque nœud.
+- [x] Le Control Plane est initialisé.
+- [x] Les deux Workers ont rejoint le cluster.
+- [x] `kubectl get nodes -o wide` affiche trois nœuds `Ready`.
+- [x] Les pods système sont dans un état attendu.
 - [ ] Un déploiement de test fonctionne.
 - [ ] Rancher est accessible et permet de consulter le cluster.
 - [ ] Les versions, commandes et résultats sont documentés.
@@ -1434,6 +1748,16 @@ Document détaillé : [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)
 - Documenter les adresses IP réellement attribuées.
 - Garder un accès à la console VMware pendant les modifications réseau.
 - Ne pas installer Kubernetes avant d'avoir validé la connectivité entre les nœuds.
+
+**Bonnes pratiques Kubernetes**
+
+- Installer **un seul CNI** par cluster, avec un `--pod-network-cidr` identique à celui attendu par ce CNI.
+- Après un `kubeadm reset`, nettoyer toujours `/etc/cni/net.d`, `/var/lib/cni`, les interfaces `cni0` et `flannel.1`, les règles `iptables`, puis redémarrer `containerd`.
+- Recopier les commandes de la documentation **en entier**, avec `sudo`, et remplacer les espaces réservés (`<TOKEN>`, `<HASH>`, `<nom-du-pod>`) par les vraies valeurs.
+- Lancer `kubectl` **uniquement sur le Control Plane**, et `kubeadm join` **uniquement sur les Workers**.
+- Ne pas s'inquiéter d'un `kubelet` en `activating (auto-restart)` avant la jonction d'un Worker.
+- Après un `kubeadm init`, vérifier systématiquement `kubectl get nodes`, `kubectl get pods -A` et `kubeadm token create --print-join-command`.
+- Ne pas faire de `kubeadm reset` par réflexe : chercher d'abord la cause réelle (`kubectl get pods -A`, `kubectl describe`, journaux).
 
 ---
 
@@ -1461,7 +1785,36 @@ Document détaillé : [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)
 > [!NOTE]
 > Le dépôt a été cloné sur le poste Windows. La clé SSH a été créée et ajoutée au compte GitHub, et le test `ssh -T git@github.com` a réussi. Les trois VM sont créées, configurées en réseau avec leurs adresses IP statiques, et accessibles en SSH avec MobaXterm.
 
-> [!WARNING]
-> La documentation des étapes et les captures doivent encore être complétées. L'installation de Kubernetes et de Rancher reste à effectuer et à valider.
+### 10.1 - État validé du cluster (au 2026-10-28)
+
+**Nœuds :**
+
+```text
+NAME                STATUS   ROLES           AGE     VERSION
+k8s-control-plane   Ready    control-plane   XXm     v1.30.14
+k8s-worker-01       Ready    <none>          Xm      v1.30.14
+k8s-worker-02       Ready    <none>          Xm      v1.30.14
+```
+
+**Pods système (extrait) :**
+
+```text
+NAMESPACE      NAME                                        READY   STATUS
+kube-flannel   kube-flannel-ds-6s2r6                       1/1     Running   (control-plane)
+kube-flannel   kube-flannel-ds-prvtd                       1/1     Running   (worker-01)
+kube-flannel   kube-flannel-ds-tvt7b                       1/1     Running   (worker-02)
+kube-system    coredns-*                                   1/1     Running   (×2)
+kube-system    etcd-k8s-control-plane                      1/1     Running
+kube-system    kube-apiserver-k8s-control-plane            1/1     Running
+kube-system    kube-controller-manager-k8s-control-plane   1/1     Running
+kube-system    kube-proxy-*                                1/1     Running   (×3)
+kube-system    kube-scheduler-k8s-control-plane            1/1     Running
+```
+
+**Bilan :** cluster Kubernetes `v1.30.14` opérationnel — 1 Control Plane + 2 Workers, tous `Ready`, Flannel actif sur les 3 nœuds, CoreDNS en `Running`.
 
 **Dernière mise à jour :** 2026-10-28.
+
+---
+
+*Fin du README.*
