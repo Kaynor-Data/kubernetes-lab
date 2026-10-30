@@ -1,6 +1,6 @@
-# Kubernetes Lab - Ubuntu Server 26.04 LTS
+# Kubernetes Lab - Ubuntu Server 24.04 LTS
 
-Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 Workers) sur trois machines virtuelles Ubuntu Server 26.04.1 LTS sous VMware Workstation avec le réseau NAT (`VMnet8`), puis intégrer Rancher pour l'administration du cluster.
+Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 Workers) sur trois machines virtuelles Ubuntu Server 24.04.1 LTS sous VMware Workstation avec le réseau NAT (`VMnet8`), puis intégrer Rancher pour l'administration du cluster.
 
 > [!NOTE]
 > Les blocs **« Pour aller plus loin »** ne sont pas nécessaires pour réaliser le laboratoire. Ils conservent les méthodes alternatives, les diagnostics détaillés et les explications destinés aux prochains intervenants qui voudront approfondir.
@@ -38,7 +38,7 @@ Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 W
 ### Spécifications de l'environnement
 
 - **Hyperviseur :** VMware Workstation (réseau NAT `VMnet8`)
-- **Système d'exploitation :** Ubuntu Server 26.04.1 LTS (`resolute`), sans interface graphique (vérifier la version exacte avec `lsb_release -a`)
+- **Système d'exploitation :** Ubuntu Server 24.04.1 LTS (`resolute`), sans interface graphique (vérifier la version exacte avec `lsb_release -a`)
 - **Sous-réseau NAT :** `192.168.189.0/24` (plage DHCP VMware : `192.168.189.128` à `192.168.189.254`)
 - **Adresse de l'hôte Windows sur VMnet8 :** `192.168.189.1`
 - **Passerelle NAT :** `192.168.189.2`
@@ -55,7 +55,7 @@ Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 W
 
 | Composant | Version | Source |
 |---|---|---|
-| Ubuntu Server | 26.04.1 LTS (`resolute`), noyau `7.0.0-38-generic` | ISO officielle |
+| Ubuntu Server | 24.04.1 LTS (`resolute`), noyau `7.0.0-38-generic` | ISO officielle |
 | Kubernetes (`kubeadm`, `kubelet`, `kubectl`) | `v1.30.14` | `pkgs.k8s.io/core:/stable:/v1.30/deb` |
 | `containerd` | `2.2.2-0ubuntu1.2` | Dépôt Ubuntu |
 | `runc` | `1.4.0-0ubuntu1` | Dépôt Ubuntu |
@@ -1202,31 +1202,203 @@ Document détaillé : [`docs/04-kubernetes.md`](docs/04-kubernetes.md)
 
 ### Étape 7 - Installer Rancher
 
----
-
 ![Rancher](docs/images/rancher/rancher-logo/rancher-logo.png)
-
----
 
 Pour ce laboratoire, étudier l'installation de Rancher sur Kubernetes avec Helm. Avant le déploiement, vérifier les prérequis officiels, installer Helm sur le poste d'administration (ou une machine ayant accès au cluster) et préparer l'accès HTTPS avec un certificat adapté.
 
-#### 7.1 - Configuration locale de Rancher avec Helm
+#### 7.1 - Installation pour un laboratoire
+
+> [!NOTE]
+> Procédure complète (installation, exposition NodePort, première connexion, dépannage) :
+> **[`docs/05-rancher.md`](docs/05-rancher.md)**
+
+Résumé des commandes principales :
+
+
+```bash
+# 1. Installer Helm
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+chmod +x get_helm.sh && sudo ./get_helm.sh
+
+# 2. Ajouter les dépôts
+helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+
+# 3. Installer cert-manager
+kubectl create namespace cert-manager
+helm install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --set crds.enabled=true
+
+# 4. Installer Rancher (lab)
+kubectl create namespace cattle-system
+helm install rancher rancher-latest/rancher \
+  --namespace cattle-system \
+  --set hostname=rancher.192.168.189.10.sslip.io \
+  --set bootstrapPassword=admin \
+  --set service.type=NodePort \
+  --set replicas=1
+```
+
+
+
+
+##### 7.1.1 - Installer Helm (si ce n'est pas déjà fait)
+
+```bash
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+chmod +x get_helm.sh
+sudo ./get_helm.sh
+```
+
+Vérifier l'installation :
+
+```bash
+helm version
+```
+
+##### 7.1.2 - Ajouter les dépôts Helm
 
 ```bash
 helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
 helm repo add jetstack https://charts.jetstack.io
 helm repo update
+```
 
-kubectl create namespace cattle-system
+##### 7.1.3 - Créer le namespace `cert-manager` et installer cert-manager
+
+```bash
+kubectl create namespace cert-manager
 
 helm install cert-manager jetstack/cert-manager \
-  --namespace cert-manager --create-namespace \
+  --namespace cert-manager \
   --set crds.enabled=true
+```
 
+> [!NOTE]
+> Si le namespace existe déjà (réinstallation), l'erreur `AlreadyExists` n'est pas bloquante. Vous pouvez ajouter `2>/dev/null || true` à la fin de `kubectl create namespace cert-manager` pour l'ignorer.
+
+##### 7.1.4 - Attendre que cert-manager soit prêt (1 à 2 minutes)
+
+```bash
+kubectl get pods --namespace cert-manager
+```
+
+> [!IMPORTANT]
+> Ne passez à l'étape suivante que lorsque les 3 pods sont en `Running` :
+> - `cert-manager-*`
+> - `cert-manager-cainjector-*`
+> - `cert-manager-webhook-*`
+
+##### 7.1.5 - Créer le namespace `cattle-system` pour Rancher
+
+```bash
+kubectl create namespace cattle-system
+```
+
+##### 7.1.6 - Installer Rancher avec les options pour un lab
+
+```bash
 helm install rancher rancher-latest/rancher \
   --namespace cattle-system \
-  --set hostname=rancher.<votre-domaine-ou-ip>
+  --set hostname=rancher.192.168.189.10.sslip.io \
+  --set bootstrapPassword=admin \
+  --set service.type=NodePort \
+  --set replicas=1
 ```
+
+> [!NOTE]
+> **`--set replicas=1`** : Rancher déploie par défaut 3 replicas. Sur un petit cluster de lab, cela peut causer des problèmes de ressources et empêcher les pods de démarrer. Le réduire à 1 est une pratique courante pour les environnements de test.
+
+> [!NOTE]
+> **`hostname=rancher.192.168.189.10.sslip.io`** : `sslip.io` est un DNS public qui résout automatiquement `<IP>.sslip.io` vers `<IP>`. C'est indispensable pour que Rancher génère un certificat TLS valide pour un nom de domaine cohérent avec l'accès depuis un navigateur.
+
+##### 7.1.7 - Récupérer le port NodePort attribué à Rancher
+
+Kubernetes attribue un port `NodePort` aléatoire (entre 30000 et 32767). Pour le récupérer :
+
+```bash
+kubectl get svc rancher -n cattle-system
+```
+
+La sortie ressemble à ceci. Le port qui nous intéresse est celui de la colonne `PORT(S)` pour le service `https-internal` (dans cet exemple, `30443`) :
+
+```text
+NAME      TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)                      AGE
+rancher   NodePort   10.100.200.300   <none>        80:30880/TCP,443:30443/TCP   2m
+```
+
+**L'URL d'accès finale sera :**
+
+```
+https://rancher.192.168.189.10.sslip.io:<PORT>
+```
+
+> [!IMPORTANT]
+> **Utilisez impérativement le hostname `rancher.192.168.189.10.sslip.io`, pas l'IP `192.168.189.10`.** Le certificat TLS a été généré pour ce hostname. Si vous accédez via l'IP, le navigateur affichera un avertissement de sécurité supplémentaire.
+
+> [!IMPORTANT]
+> **L'accès se fait en HTTPS.** Votre navigateur affichera un avertissement de sécurité car le certificat est auto-signé. Acceptez le risque pour continuer.
+
+##### 7.1.8 - Première connexion à l'interface web
+
+Ouvrez votre navigateur sur l'URL récupérée, puis connectez-vous avec :
+
+- **Utilisateur :** `admin`
+- **Mot de passe :** `admin` (défini par `bootstrapPassword=admin`)
+
+Rancher vous demandera immédiatement de **changer ce mot de passe** pour un mot de passe fort (12 caractères minimum). C'est obligatoire avant de continuer.
+
+##### 7.1.9 - (Optionnel) Fixer le port NodePort
+
+Pour ne pas avoir à chercher le port à chaque fois, patchez le service pour lui attribuer un port fixe :
+
+```bash
+kubectl patch svc rancher -n cattle-system \
+  -p '{"spec":{"ports":[{"port":443,"targetPort":443,"nodePort":30443,"name":"https-internal"}]}}'
+```
+
+L'URL devient alors **`https://rancher.192.168.189.10.sslip.io:30443`**.
+
+<!-- #### 7.2 - (Optionnel) Installer Rancher avec les options pour une entreprise -->
+
+---
+
+
+
+
+
+##### 5. Créer le namespace pour Rancher
+
+```bash
+kubectl create namespace cattle-system
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### 7.2 - cert-manager
+
+
+
+
+
 
 #### 7.2 - Pour aller plus loin — Rancher avec Vagrant, VirtualBox et RKE
 
@@ -1496,7 +1668,7 @@ Unit containerd.service could not be found.
 ls: impossible d'accéder à '/etc/cni/net.d/' : Aucun fichier ou répertoire de ce type
 ```
 
-**Diagnostic :** Les workers étaient des installations Ubuntu 26.04 fraîches — aucun composant Kubernetes n'était installé. Normal, il faut les préparer avant le `join`.
+**Diagnostic :** Les workers étaient des installations Ubuntu 24.04 fraîches — aucun composant Kubernetes n'était installé. Normal, il faut les préparer avant le `join`.
 
 **Résolution :** Préparation standard (voir Étape 3, 4 et 5.4 côté Worker).
 
