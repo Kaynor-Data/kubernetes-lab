@@ -447,9 +447,8 @@ network:
           - 8.8.8.8
 ```
 
-**k8s-worker-01 (`192.168.189.11`)** : même fichier avec `- 192.168.189.11/24`.
-
-**k8s-worker-02 (`192.168.189.12`)** : même fichier avec `- 192.168.189.12/24`.
+- **k8s-worker-01 (`192.168.189.11`)** : même fichier avec `- 192.168.189.11/24`.
+- **k8s-worker-02 (`192.168.189.12`)** : même fichier avec `- 192.168.189.12/24`.
 
 > [!IMPORTANT]
 > Le YAML est sensible à l'indentation (espaces, jamais de tabulations). Vérifier le nom de l'interface avec `ip -br addr` : si ce n'est pas `ens33`, utiliser le nom réel.
