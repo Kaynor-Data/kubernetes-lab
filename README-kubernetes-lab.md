@@ -38,7 +38,7 @@ Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 W
 ### Spécifications de l'environnement
 
 - **Hyperviseur :** VMware Workstation (réseau NAT `VMnet8`)
-- **Système d'exploitation :** Ubuntu Server 24.04.1 LTS (`resolute`), sans interface graphique (vérifier la version exacte avec `lsb_release -a`)
+- **Système d'exploitation :** Ubuntu Server `24.04` installé à l'origine depuis l'ISO, puis mis à niveau vers `26.04.1 LTS` (`resolute`) : version actuelle sur les trois VM, avec les noyaux `7.0.0-42-generic` (Control Plane) et `7.0.0-38-generic` (Workers). Sans interface graphique (vérifier la version exacte avec `lsb_release -a`) 
 - **Sous-réseau NAT :** `192.168.189.0/24` (plage DHCP VMware : `192.168.189.128` à `192.168.189.254`)
 - **Adresse de l'hôte Windows sur VMnet8 :** `192.168.189.1`
 - **Passerelle NAT :** `192.168.189.2`
@@ -55,7 +55,7 @@ Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 W
 
 | Composant | Version | Source |
 |---|---|---|
-| Ubuntu Server | 24.04.1 LTS (`resolute`), noyau `7.0.0-38-generic` | ISO officielle |
+| Ubuntu Server | Installé en `24.04`, mis à niveau vers `26.04.1 LTS`, noyaux `7.0.0-42-generic` (CP) / `7.0.0-38-generic` (Workers) | ISO officielle puis mise à niveau |
 | Kubernetes (`kubeadm`, `kubelet`, `kubectl`) | `v1.30.14` | `pkgs.k8s.io/core:/stable:/v1.30/deb` |
 | `containerd` | `2.2.2-0ubuntu1.2` | Dépôt Ubuntu |
 | `runc` | `1.4.0-0ubuntu1` | Dépôt Ubuntu |
@@ -613,6 +613,10 @@ sysctl net.ipv4.ip_forward
 
 > [!NOTE]
 > Documenter les modifications persistantes (`/etc/fstab`, `/etc/modules-load.d/`, `/etc/sysctl.d/`) pour qu'elles restent cohérentes après un redémarrage.
+
+> [!NOTE]
+> Vérifier aussi **après chaque redémarrage** avec `swapon --show` (aucune ligne attendue). Un swap actif empêche `kubelet` de démarrer (voir E14).
+
 
 <details>
 <summary><strong>Pour aller plus loin - Swap en détail</strong></summary>
@@ -1328,6 +1332,12 @@ helm install rancher rancher-latest/rancher \
 Accès : `https://rancher.192.168.189.10.sslip.io:<PORT>` (admin / admin)
 
 
+> [!IMPORTANT]
+> Les trois pods `cert-manager` doivent être `Running` avant l'installation de Rancher (`kubectl get pods -n cert-manager`). Sinon, voir E15.
+> Après l'installation, `kubectl get svc -n cattle-system` donne le port NodePort réel (entre 30000 et 32767) à mettre dans l'URL.
+
+
+
 #### 7.2 - Installation pour une entreprise (haute disponibilité)
 
 
@@ -1481,7 +1491,7 @@ Pour chaque incident, noter : le message d'erreur exact, la machine concernée, 
 
 #### 9.2 - Erreurs de cluster rencontrées lors du déploiement réel
 
-Le détail complet (E1→E13) est documenté dans le bloc ci-dessous. Résumé :
+Le détail complet (E1→E15) est documenté dans le bloc ci-dessous. Résumé :
 
 | # | Erreur | Cause | Correction clé |
 |---|---|---|---|
@@ -1498,9 +1508,12 @@ Le détail complet (E1→E13) est documenté dans le bloc ci-dessous. Résumé :
 | E11 | `kubectl: not found` sur worker | `kubectl` non installé sur les workers | Lancer `kubectl` sur le control plane |
 | E12 | containerd paquet Ubuntu vs `.io` | Choix de paquet | Rester cohérent (paquet Ubuntu + SystemdCgroup) |
 | E13 | Prérequis manquants | Swap, modules, sysctl | Étape 3 |
+| E14 | `kubelet` en `activating (auto-restart)`, journal : `running with swap on is not supported` | Swap actif sur un Worker (`/swap.img` encore monté) | `sudo swapoff -a`, commenter la ligne swap dans `/etc/fstab`, `sudo systemctl restart kubelet` |
+| E15 | Pods `cert-manager` et `cert-manager-webhook` en `ImagePullBackOff` | Non confirmée : le `describe` du pod n'a pas encore été lu | `kubectl describe pod` puis selon l'événement (voir le détail) |
+
 
 <details>
-<summary><strong>Pour aller plus loin - Retour d'expérience détaillé du déploiement (E1→E13)</strong></summary>
+<summary><strong>Pour aller plus loin - Retour d'expérience détaillé du déploiement (E1→E15)</strong></summary>
 
 Ce déroulé reprend, dans l'ordre, chaque erreur rencontrée pendant le déploiement, avec la commande fautive, la sortie exacte, le diagnostic et la résolution. Il est destiné aux prochains intervenants pour éviter de reproduire les mêmes pièges.
 
@@ -1807,6 +1820,7 @@ overlay
 br_netfilter
 EOF
 
+
 cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
 net.bridge.bridge-nf-call-iptables  = 1
 net.bridge.bridge-nf-call-ip6tables = 1
@@ -1821,6 +1835,52 @@ sudo sysctl --system
 free -h | grep -i swap       # → Swap: 0B 0B 0B
 lsmod | grep -E 'overlay|br_netfilter'
 ```
+
+---
+
+### E14 — `kubelet` ne démarre pas sur un Worker : swap actif
+
+**Symptôme :** le nœud est `NotReady` côté Control Plane (`Kubelet stopped posting node status`), et sur le Worker :
+
+```text
+failed to run Kubelet: running with swap on is not supported, please disable swap!
+/proc/swaps contained: [... /swap.img file 4194300 0 -1]
+kubelet.service: Scheduled restart job, restart counter is at 343
+```
+
+**Diagnostic :** `/swap.img` était actif, et `kubelet` refuse de démarrer dans ce cas. Le compteur à 343 redémarrages montre que le problème durait depuis longtemps : les pods Flannel et `kube-proxy` du nœud affichaient plus de 300 redémarrages pour la même raison. La cause exacte du retour du swap n'est pas établie (préparation de l'étape 3 non appliquée sur ce nœud, ou ligne `/etc/fstab` restaurée).
+
+**Résolution :**
+
+```bash
+sudo swapoff -a
+sudo nano /etc/fstab            # commenter la ligne /swap.img
+free -h                         # Swap: 0B 0B 0B
+sudo systemctl restart kubelet
+sudo ss -lntp | grep 10250      # kubelet doit écouter
+```
+
+**Résultat :** `kubelet` passe à `active (running)` et le nœud repasse `Ready`. Vérifier `/etc/fstab` sur les trois nœuds : un simple `swapoff -a` ne survit pas au redémarrage.
+
+---
+
+### E15 — `cert-manager` en `ImagePullBackOff`
+
+**Symptôme :** `cert-manager` et `cert-manager-webhook` sont en `ImagePullBackOff`, alors que `cainjector`, du même chart, est `Running`.
+
+**Diagnostic :**
+
+```bash
+kubectl describe pod -n cert-manager <pod> | tail -20
+kubectl get pods -n cert-manager -o wide      # sur quel Worker ?
+getent hosts quay.io                          # depuis ce Worker
+sudo crictl pull quay.io/jetstack/cert-manager-controller:v1.21.3
+```
+
+Le message de l'événement `Failed to pull image` donne la cause : `no such host` (DNS), `timeout` (réseau ou proxy), `manifest unknown` (tag). Ces pods ont été planifiés sur un Worker qui était alors en panne (E14) : tester le pull sur un Worker sain avant de conclure à un problème de registre.
+
+**Résolution :** à compléter une fois la cause confirmée.
+
 
 </details>
 
