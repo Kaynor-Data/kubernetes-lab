@@ -1491,7 +1491,7 @@ Pour chaque incident, noter : le message d'erreur exact, la machine concernée, 
 
 #### 9.2 - Erreurs de cluster rencontrées lors du déploiement réel
 
-Le détail complet (E1→E15) est documenté dans le bloc ci-dessous. Résumé :
+Le détail complet (E1→E17) est documenté dans le bloc ci-dessous. Résumé :
 
 | # | Erreur | Cause | Correction clé |
 |---|---|---|---|
@@ -1510,10 +1510,11 @@ Le détail complet (E1→E15) est documenté dans le bloc ci-dessous. Résumé :
 | E13 | Prérequis manquants | Swap, modules, sysctl | Étape 3 |
 | E14 | `kubelet` en `activating (auto-restart)`, journal : `running with swap on is not supported` | Swap actif sur un Worker (`/swap.img` encore monté) | `sudo swapoff -a`, commenter la ligne swap dans `/etc/fstab`, `sudo systemctl restart kubelet` |
 | E15 | Pods `cert-manager` et `cert-manager-webhook` en `ImagePullBackOff` | Timeouts réseau/DNS vers `quay.io` sur le Worker (`i/o timeout`, `TLS handshake timeout`) | Attendre les retries de kubelet (le pull a fini par réussir) ; vérifier la résolution DNS du nœud |
-
+| E16 | Timeouts DNS (`dig @1.1.1.1` en timeout, `curl -I` échoue) sur les 3 nœuds | UDP 53 bloqué en amont + `192.168.189.2` DNS peu fiable + préférence IPv6 sans route | **DNSOverTLS** dans `systemd-resolved` + retrait de `192.168.189.2` des `nameservers` Netplan |
+| E17 | `kubectl create deployment` échoue avec `[::1]:6443` alors que `kubectl get` fonctionne | **IPv6 désactivé à chaud après démarrage du kube-apiserver** — client loopback `ResourceQuota` cassé | Réactiver IPv6 + `systemctl restart kubelet` sur le Control Plane |
 
 <details>
-<summary><strong>Pour aller plus loin - Retour d'expérience détaillé du déploiement (E1→E15)</strong></summary>
+<summary><strong>Pour aller plus loin - Retour d'expérience détaillé du déploiement (E1→E17)</strong></summary>
 
 Ce déroulé reprend, dans l'ordre, chaque erreur rencontrée pendant le déploiement, avec la commande fautive, la sortie exacte, le diagnostic et la résolution. Il est destiné aux prochains intervenants pour éviter de reproduire les mêmes pièges.
 
@@ -1898,7 +1899,137 @@ sudo netplan apply
 time resolvectl query quay.io
 ```
 
+---
 
+---
+
+### E16 — Timeouts DNS : UDP 53 bloqué, DNS-over-TLS (TCP 853) fonctionnel
+
+**Symptôme :**
+
+```text
+$ time dig @1.1.1.1 AAAA quay.io +short
+;; communications error to 1.1.1.1#53: timed out   (×3)
+real 0m15,027s
+
+$ time dig @127.0.0.53 quay.io +short
+13.216.126.202
+34.224.59.116
+...
+real 0m0,067s           # ← le stub systemd-resolved répond !
+
+$ dig +tls @1.1.1.1 AAAA quay.io +short
+2600:1f18:d77:9002:c98f:7cab:507:7198    # ← TCP 853 (DoT) FONCTIONNE
+...
+
+$ curl -I --connect-timeout 10 https://quay.io
+curl: (28) Resolving timed out after 10002 milliseconds
+
+$ curl -4 -I --connect-timeout 10 https://quay.io
+HTTP/2 200                                # ← OK en forçant IPv4
+```
+
+Les trois nœuds sont affectés de la même manière. `cert-manager` tombe en `ImagePullBackOff` (E15) **parce que** `containerd` n'arrive pas à résoudre `quay.io` de manière fiable.
+
+**| # | Constat | Cause |**
+|---|---|---|
+| 1 | UDP 53 et TCP 53 vers `1.1.1.1`, `8.8.8.8`, `192.168.189.2` bloqués | Filtrage amont (VMware NAT ou FAI) |
+| 2 | `192.168.189.2` configuré comme DNS dans Netplan | La passerelle VMware relaie mal le DNS |
+| 3 | `curl -I` (sans `-4`) échoue alors que `curl -4 -I` réussit | Résolution AAAA prioritaire mais aucune route IPv6 → timeout bloquant |
+
+Confirmé par `sudo resolvectl statistics` :
+
+
+```text
+Failure Transactions
+  Total Timeouts:  52        # 52 requêtes en timeout
+Cache Misses: 269            # la majorité des lookups ratent
+```
+
+> [!NOTE]
+> **Résolution appliquée (sur les trois nœuds) :**
+> 
+> ---
+> 
+> 1. Retirer 192.168.189.2 des nameservers Netplan — il reste la passerelle via:, mais n'est plus un serveur DNS.
+>
+> ```bach
+> sudo nano /etc/netplan/50-cloud-init.yaml
+> ```
+>
+> La section `nameservers:` doit contenir uniquement :
+>
+> ```yaml
+>      nameservers:
+>        addresses:
+>          - 1.1.1.1
+>          - 8.8.8.8
+> ```
+> 
+> ```bach
+> sudo netplan apply
+>  ```
+>
+> 2. Activer DNSOverTLS dans /etc/systemd/resolved.conf
+> 
+> ```bach
+> sudo nano /etc/systemd/resolved.conf
+>  ```
+> 
+> Section [`Resolve`] :
+>
+>  ```ini
+> [Resolve]
+> DNS=1.1.1.1#cloudflare-dns.com 8.8.8.8#dns.google
+> DNSOverTLS=yes
+> DNSSEC=no
+>  ```
+>
+> ```bach
+> sudo systemctl restart systemd-resolved
+> ```
+>
+> **Validation :**
+>
+> ```bach
+> resolvectl status
+> ```
+> 
+> ```text
+> resolvectl status
+> Global
+>   Protocols: -LLMNR -mDNS +DNSOverTLS DNSSEC=no/unsupported
+>   DNS Servers: 1.1.1.1#cloudflare-dns.com 8.8.8.8#dns.google
+> 
+> Link 2 (ens33)
+>   DNS Servers: 1.1.1.1 8.8.8.8          # 192.168.189.2 disparu ✅
+> ```
+>
+> ```bach
+> time resolvectl query quay.io
+> **# quay.io: 34.224.59.116 ...**
+> **# -- Data was acquired via local or encrypted transport: yes    ← DoT actif** ✅
+> **# real 0m0,328s**
+> 
+> time curl -I --connect-timeout 10 https://quay.io
+> **# HTTP/2 200**
+> **# real 0m1,447s**
+> ```
+
+**Résultat :** `cert-manager` télécharge ses images et passe `Running` **sans aucune autre action**.
+
+> [!IMPORTANT]
+> **Leçon à retenir :** quand plusieurs pods d'un même chart tombent en `ImagePullBackOff`, c'est rarement l'image elle-même. Tester `dig +tls @1.1.1.1` et `curl -4 -I` **avant** de suspecter le registre ou le tag. Une fois DoT actif, `Data acquired via encrypted transport: yes` confirme que le DNS passe par TLS.
+
+> [!NOTE]
+> `192.168.189.2` reste la passerelle NAT dans `routes: via:`. Il est simplement retiré du champ nameservers: — deux usages distincts.
+
+
+
+
+
+
+---
 
 </details>
 
