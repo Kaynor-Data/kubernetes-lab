@@ -1509,7 +1509,7 @@ Le détail complet (E1→E15) est documenté dans le bloc ci-dessous. Résumé :
 | E12 | containerd paquet Ubuntu vs `.io` | Choix de paquet | Rester cohérent (paquet Ubuntu + SystemdCgroup) |
 | E13 | Prérequis manquants | Swap, modules, sysctl | Étape 3 |
 | E14 | `kubelet` en `activating (auto-restart)`, journal : `running with swap on is not supported` | Swap actif sur un Worker (`/swap.img` encore monté) | `sudo swapoff -a`, commenter la ligne swap dans `/etc/fstab`, `sudo systemctl restart kubelet` |
-| E15 | Pods `cert-manager` et `cert-manager-webhook` en `ImagePullBackOff` | Non confirmée : le `describe` du pod n'a pas encore été lu | `kubectl describe pod` puis selon l'événement (voir le détail) |
+| E15 | Pods `cert-manager` et `cert-manager-webhook` en `ImagePullBackOff` | Timeouts réseau/DNS vers `quay.io` sur le Worker (`i/o timeout`, `TLS handshake timeout`) | Attendre les retries de kubelet (le pull a fini par réussir) ; vérifier la résolution DNS du nœud |
 
 
 <details>
@@ -1879,7 +1879,25 @@ sudo crictl pull quay.io/jetstack/cert-manager-controller:v1.21.3
 
 Le message de l'événement `Failed to pull image` donne la cause : `no such host` (DNS), `timeout` (réseau ou proxy), `manifest unknown` (tag). Ces pods ont été planifiés sur un Worker qui était alors en panne (E14) : tester le pull sur un Worker sain avant de conclure à un problème de registre.
 
-**Résolution :** à compléter une fois la cause confirmée.
+**Cause confirmée :** le `describe` des pods affiche des `i/o timeout` et des `TLS handshake timeout` vers `quay.io`, ainsi qu'un `lookup quay.io on 127.0.0.53:53: i/o timeout`. Le problème venait du réseau et du DNS, pas du tag ni du registre (`curl -I https://quay.io` répondait `HTTP/2 200` par moments). Le DNS est lent (environ 6 s par requête) sur les trois nœuds
+
+Le coupable probable est le couple `1.1.1.1` / `8.8.8.8` à travers le NAT VMware, avec systemd-resolved qui attend un serveur qui répond mal avant de passer au suivant. Teste d’abord, sur un nœud :
+
+**Résolution :**
+
+```bash
+resolvectl status ens33
+time dig @192.168.189.2 quay.io +short
+time dig @1.1.1.1 quay.io +short
+```
+
+Si la passerelle `192.168.189.2` répond en moins d’une seconde et pas `1.1.1.1`, remplace les nameservers par la seule adresse `192.168.189.2` dans `/etc/netplan/50-cloud-init.yaml` sur les trois VM, puis :
+
+```bash
+sudo netplan apply
+time resolvectl query quay.io
+```
+
 
 
 </details>
