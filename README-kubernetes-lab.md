@@ -1245,9 +1245,9 @@ C'est l'équivalent de ce qui a été fait pour `ubuntu-server-01`, mais pour ro
 **Résolution retenue dans ce laboratoire :** Option 1 (`exit` pour revenir à `ubuntu-server-01`). Le cluster répond correctement, les trois nœuds sont `Ready`.
 
 
+---
 
-
-
+---
 
 
 Examiner le runtime, le CNI et les événements Kubernetes, puis vérifier qu'un seul CNI est installé avec le bon CIDR (point 4).
@@ -1304,6 +1304,9 @@ Résumé des commandes principales :
 curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
 chmod +x get_helm.sh && sudo ./get_helm.sh
 
+# Vérifier Helm
+# Attendu : version.BuildInfo{Version:"v3.22.1", ...}
+
 # 2. Ajouter les dépôts
 helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
 helm repo add jetstack https://charts.jetstack.io
@@ -1311,12 +1314,14 @@ helm repo update
 
 # 3. Installer cert-manager
 kubectl create namespace cert-manager
+
 helm install cert-manager jetstack/cert-manager \
   --namespace cert-manager \
   --set crds.enabled=true
 
 # 4. Installer Rancher (lab)
 kubectl create namespace cattle-system
+
 helm install rancher rancher-latest/rancher \
   --namespace cattle-system \
   --set hostname=rancher.192.168.189.10.sslip.io \
