@@ -1442,7 +1442,7 @@ Document détaillé : [`docs/06-validation.md`](docs/06-validation.md)
 
 ### Étape 9 - Gestion des applications et des Services Kubernetes
 
-![Google Cloud Platform](docs/images/kubernetes/Gestion-et-Services-Kubernetes/Gestion-&-Services-Kubernetes.jpg)
+<!-- ![Google Cloud Platform](docs/images/kubernetes/infrastructure-vmware-et-des-noeuds-kubernetes/VUE-D-ENSEMBLE-DE-L-INFRASTRUCTURE-VMWARE-ET-DES-NŒUDS-KUBERNETES.png) -->
 
 
 
@@ -1480,9 +1480,7 @@ Le cluster est constitué de trois machines virtuelles :
 - DNS interne : CoreDNS
 - Administration : Rancher
 
-![Architecture de l'infrastructure Kubernetes](docs/images/Services-gestion/architecture-infrastructure-kubernetes.png)
-
-*Figure 1 — Architecture logique de l'infrastructure VMware et des trois machines virtuelles.*
+![Google Cloud Platform](docs/images/kubernetes/infrastructure-vmware-et-des-noeuds-kubernetes/VUE-D-ENSEMBLE-DE-L-INFRASTRUCTURE-VMWARE-ET-DES-NŒUDS-KUBERNETES.png)
 
 #### 9.2 - Déploiement des Pods Nginx
 
@@ -1615,9 +1613,8 @@ kubectl exec dns-test -- \
 
 La page HTML d'accueil de Nginx est retournée.
 
-![Flux HTTP entre un Pod client, le Service et les Pods Nginx](docs/images/Services-gestion/flux-requete-http-pod-service-endpoints.png)
+![Flux HTTP entre un Pod client, le Service et les Pods Nginx](docs/images/Services-gestion/etat-d-affectation-des-pods-nginx-sur-les-workers/flux-requete-http-pod-service-endpoints.jpg)
 
-*Figure 2 — Chemin logique d'une requête HTTP depuis un Pod client vers les endpoints Nginx.*
 
 Cette expérimentation valide la résolution DNS interne et la communication entre Pods à travers un Service ClusterIP.
 
@@ -1675,9 +1672,8 @@ Résultat observé :
 
 Le Deployment pilote le ReplicaSet, qui maintient le nombre de Pods demandé. Le Service sélectionne les Pods grâce à leurs Labels et fournit un point d'accès réseau stable.
 
-![Relation entre Deployment, ReplicaSet, Pods et Service](docs/images/Services-gestion/relation-deployment-replicaset-pods-service.png)
+![Relation hiérarchique entre Deployment, ReplicaSet, Pods avec le Service comme point d'accès](docs/images/Services-gestion/structure-hierarchique-deployment-replicaset-pods/relation-deployment-replicaset-pods-service.jpg)
 
-*Figure 3 — Relation hiérarchique entre Deployment, ReplicaSet et Pods, avec le Service comme point d'accès.*
 
 #### 9.7 - Test d'auto-réparation du Deployment
 
@@ -1719,9 +1715,8 @@ Adresses IP des Pods :
 - Worker 01 : `10.244.1.67` et `10.244.1.68`
 - Worker 02 : `10.244.2.41`
 
-![Répartition des Pods du Deployment sur les Workers](docs/images/Services-gestion/repartition-pods-workers.png)
+![Répartition observée des trois Pods du Deployment sur les deux Workers](docs/images/Services-gestion/repartition-pods-workers/repartition-pods-workers.png)
 
-*Figure 4 — Répartition observée des trois Pods du Deployment sur les deux Workers.*
 
 **Interprétation**
 
@@ -1825,9 +1820,8 @@ Le code HTTP `200 OK` confirme que le serveur Nginx a répondu correctement.
 | Service du Deployment | 3 endpoints |
 | Test HTTP via port-forward | HTTP 200 OK |
 
-![Synthèse des tests Kubernetes](docs/images/Services-gestion/bilan-tests-kubernetes.png)
+![Synthèse visuelle des principaux tests réalisés et validés sur Kubernetes](docs/images/Services-gestion/bilan-tests-kubernetes/bilan-tests-kubernetes.jpg)
 
-*Figure 5 — Synthèse visuelle des principaux tests réalisés et validés.*
 
 #### 9.12 - Commandes de référence
 
