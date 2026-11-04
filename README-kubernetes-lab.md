@@ -2526,6 +2526,90 @@ Document détaillé : [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)
 
 ---
 
+## REMARQUES — Vérification de l'accès à Rancher depuis Windows
+
+Après l'installation de Rancher sur le cluster Kubernetes, plusieurs vérifications ont été effectuées pour identifier le port d'accès et confirmer que l'interface web était accessible depuis le poste Windows.
+
+### 1. Identifier les ports NodePort de Rancher
+
+Depuis le Control Plane, afficher les Services du namespace `cattle-system` :
+
+```bash
+kubectl get services -n cattle-system
+```
+
+**Résultat obtenu :**
+
+```text
+NAME                       TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)
+imperative-api-extension   ClusterIP   10.97.223.93     <none>        6666/TCP
+rancher                    NodePort    10.109.108.208   <none>        80:31283/TCP,443:31284/TCP
+rancher-internal           ClusterIP   10.97.166.158    <none>        443/TCP
+rancher-webhook            ClusterIP   10.99.117.150    <none>        443/TCP
+```
+
+Le Service `rancher` est de type `NodePort`. Les ports exposés sont :
+
+| Port du Service | Port NodePort | Protocole |
+| --------------- | ------------- | --------- |
+| 80              | `31283`       | HTTP      |
+| 443             | `31284`       | HTTPS     |
+
+Le port `31284` est celui à utiliser pour accéder à Rancher en HTTPS depuis Windows.
+
+### 2. Vérifier l'accessibilité du port depuis Windows
+
+Ouvrir **PowerShell** sur le poste Windows et exécuter :
+
+```powershell
+Test-NetConnection 192.168.189.10 -Port 31284
+```
+
+Cette commande vérifie que le poste Windows peut établir une connexion TCP vers le port `31284` du Control Plane.
+
+**Résultat obtenu :**
+
+```text
+ComputerName     : 192.168.189.10
+RemotePort       : 31284
+TcpTestSucceeded : True
+```
+
+- `True` : le port est accessible depuis Windows.
+- `False` : vérifier la connectivité réseau, le pare-feu et l'exposition du Service NodePort.
+
+### 3. Accéder à l'interface Rancher
+
+Lorsque le test de connectivité est positif, ouvrir un navigateur sur Windows et saisir l'adresse suivante :
+
+[https://rancher.192.168.189.10.sslip.io:31284](https://rancher.192.168.189.10.sslip.io:31284)
+
+Pour la première connexion du laboratoire :
+
+- **Utilisateur :** `admin`
+- **Mot de passe initial :** `admin`
+
+Après la connexion, modifier le mot de passe initial.
+
+> [!NOTE]
+> Le navigateur peut afficher un avertissement relatif au certificat TLS dans cet environnement de laboratoire. Vérifier que l'adresse saisie est bien celle du serveur Rancher avant de poursuivre.
+
+### 4. Résultat de la validation
+
+L'accès à l'interface web Rancher depuis le poste Windows a été testé et validé.
+
+| Vérification                                  | Résultat                  |
+| --------------------------------------------- | ------------------------- |
+| Service Rancher présent dans `cattle-system`  | Validé                    |
+| Type de Service `NodePort`                    | Validé                    |
+| Port HTTPS NodePort `31284` identifié         | Validé                    |
+| Test TCP depuis Windows                       | `TcpTestSucceeded : True` |
+| Accès à l'interface web Rancher               | Validé                    |
+
+**Conclusion :** Rancher est opérationnel et accessible depuis Windows à travers le réseau NAT VMware (`VMnet8`), en utilisant le port HTTPS `31284` exposé par Kubernetes.
+
+---
+
 ## 10. État actuel
 
 > [!NOTE]
