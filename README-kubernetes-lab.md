@@ -1444,6 +1444,8 @@ Document détaillé : [`docs/06-validation.md`](docs/06-validation.md)
 
 ![Google Cloud Platform](docs/images/kubernetes/Gestion-et-Services-Kubernetes/Gestion-&-Services-Kubernetes.jpg)
 
+
+
 Ce document présente les manipulations réalisées dans le laboratoire Kubernetes pour comprendre le déploiement, l'exposition et la gestion des applications conteneurisées au sein d'un cluster Kubernetes.
 
 L'objectif est de maîtriser les relations entre les principaux objets Kubernetes :
