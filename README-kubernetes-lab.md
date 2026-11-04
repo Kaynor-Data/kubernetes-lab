@@ -96,6 +96,7 @@ Chaque nœud doit posséder une adresse IP unique et stable, un nom d'hôte uniq
 10. Valider le cluster avec `kubectl get nodes -o wide`.
 11. Installer et configurer Rancher pour l'administration.
 12. Documenter les commandes, les résultats, les erreurs et les corrections.
+13. Déployer et exposer des applications avec Pods, Labels, Services, Deployments et ReplicaSets.
 
 ---
 
@@ -132,6 +133,7 @@ kubernetes-lab/
     ├── 05-rancher.md
     ├── 06-validation.md
     ├── 07-troubleshooting.md
+    ├── 08-applications-services.md
     ├── rancher-vagrant-virtualBox.md
     ├── kubernetes/
     │   └── kubernetes-installation-guide.jpg
@@ -151,6 +153,12 @@ kubernetes-lab/
         ├── rancher/
         │   └── rancher-logo/
         │       └── rancher-logo.png
+        ├── Services-gestion/
+        │   ├── architecture-infrastructure-kubernetes.png
+        │   ├── flux-requete-http-pod-service-endpoints.png
+        │   ├── relation-deployment-replicaset-pods-service.png
+        │   ├── repartition-pods-workers.png
+        │   └── bilan-tests-kubernetes.png
         └── network-dns/
             ├── preparer-les-VM/
             ├── vm-settings/
@@ -220,7 +228,7 @@ Valider avec **OK**.
 Dans **Settings > Network Adapter**, choisir **NAT: Used to share the host's IP address** (équivalent à *Custom: VMnet8*). Cocher **Connect at power on**.
 
 > [!WARNING]
-> Une carte en **Bridged** place la VM sur le réseau de la box (`192.168.1.x`) : elle ne voit alors ni `VMnet8`, ni la passerelle `192.168.189.2`. C'est la cause d'un `Destination Host Unreachable` vers `.2` (voir la section 6, étape 9).
+> Une carte en **Bridged** place la VM sur le réseau de la box (`192.168.1.x`) : elle ne voit alors ni `VMnet8`, ni la passerelle `192.168.189.2`. C'est la cause d'un `Destination Host Unreachable` vers `.2` (voir la section 6, étape 10).
 
 #### 1.5 - Questions de l'installateur Ubuntu
 
@@ -1426,17 +1434,470 @@ kube-system    kube-scheduler-k8s-control-plane            1/1     Running
 > Juste après la jonction, un Worker peut apparaître `NotReady` pendant une à deux minutes, et ses pods `kube-proxy` redémarrer une ou deux fois : le temps que Flannel et `kube-proxy` s'installent. Relancer `kubectl get nodes` avant de conclure à un problème.
 
 > [!NOTE]
-> **Test de déploiement à refaire.** Lors d'un premier essai, `nginx-test` était encore en `ContainerCreating` (15 s) quand il a été supprimé : le test n'est donc pas validé. À refaire en attendant `Running`, puis à noter ici la sortie réelle de `kubectl get pods -o wide`.
+> **Test de déploiement validé à l'étape 9.** Le déploiement manuel `nginx-test` de cette étape a été refait et validé dans le cadre de l'étape 9 (Pods, Service, Deployment, auto-réparation). Voir la section 9.11 pour le bilan.
 
 Document détaillé : [`docs/06-validation.md`](docs/06-validation.md)
 
 ---
 
-### Étape 9 - Documenter les problèmes (troubleshooting)
+### Étape 9 - Gestion des applications et des Services Kubernetes
+
+Ce document présente les manipulations réalisées dans le laboratoire Kubernetes pour comprendre le déploiement, l'exposition et la gestion des applications conteneurisées au sein d'un cluster Kubernetes.
+
+L'objectif est de maîtriser les relations entre les principaux objets Kubernetes :
+
+- **Pod** : unité d'exécution d'une application conteneurisée.
+- **Label** : mécanisme d'identification et de sélection des ressources.
+- **Service** : point d'accès réseau stable vers un ensemble de Pods.
+- **Endpoint** : adresse IP et port des Pods sélectionnés par un Service.
+- **Deployment** : objet de gestion déclarative des applications.
+- **ReplicaSet** : contrôleur chargé de maintenir le nombre de Pods souhaité.
+
+Les expérimentations ont été effectuées sur le cluster déployé aux étapes précédentes (VMware Workstation + Ubuntu Server).
+
+#### 9.1 - Architecture du laboratoire
+
+Le cluster est constitué de trois machines virtuelles :
+
+| Machine | Rôle | Adresse IP |
+|---|---|---|
+| k8s-control-plane | Control Plane | 192.168.189.10 |
+| k8s-worker-01 | Worker 01 | 192.168.189.11 |
+| k8s-worker-02 | Worker 02 | 192.168.189.12 |
+
+**Environnement technique :**
+
+- Hyperviseur : VMware Workstation
+- Réseau : NAT — VMnet8
+- Système : Ubuntu Server 26.04.1 LTS
+- Kubernetes : v1.30.14
+- Runtime : containerd 2.2.2
+- Réseau Kubernetes : Flannel
+- DNS interne : CoreDNS
+- Administration : Rancher
+
+![Architecture de l'infrastructure Kubernetes](docs/images/Services-gestion/architecture-infrastructure-kubernetes.png)
+
+*Figure 1 — Architecture logique de l'infrastructure VMware et des trois machines virtuelles.*
+
+#### 9.2 - Déploiement des Pods Nginx
+
+La première expérimentation consiste à créer deux Pods Nginx indépendants.
+
+**Création du premier Pod**
+
+```bash
+kubectl run nginx-test \
+  --image=nginx \
+  --port=80
+```
+
+**Création du second Pod** (à partir d'un manifeste YAML)
+
+```bash
+kubectl apply -f nginx-worker01.yaml
+```
+
+**Vérification**
+
+```bash
+kubectl get pods -o wide
+```
+
+Résultat observé :
+
+| Pod | Adresse IP | Nœud |
+|---|---|---|
+| nginx-test | 10.244.2.39 | k8s-worker-02 |
+| nginx-worker01 | 10.244.1.65 | k8s-worker-01 |
+
+Les deux Pods sont à l'état `Running`.
+
+#### 9.3 - Gestion des Labels
+
+Les Labels permettent d'associer des métadonnées aux ressources Kubernetes. Ils sont notamment utilisés par les Services et les contrôleurs pour sélectionner les Pods concernés.
+
+Dans notre expérimentation, les deux Pods Nginx ont reçu le Label suivant :
+
+```bash
+kubectl label pod nginx-test app=nginx
+kubectl label pod nginx-worker01 app=nginx
+```
+
+Vérification :
+
+```bash
+kubectl get pods --show-labels
+```
+
+Les deux Pods possèdent maintenant le Label `app=nginx`.
+
+#### 9.4 - Création d'un Service ClusterIP
+
+Un Service fournit un point d'accès réseau stable vers les Pods sélectionnés. Contrairement à l'adresse IP d'un Pod, qui peut changer lorsqu'un Pod est recréé, la ClusterIP du Service reste stable pendant la durée de vie de celui-ci.
+
+**Manifeste `nginx-service.yaml`**
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  type: ClusterIP
+  selector:
+    app: nginx
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80
+```
+
+Application :
+
+```bash
+kubectl apply -f nginx-service.yaml
+```
+
+Vérification :
+
+```bash
+kubectl get services
+kubectl get endpoints nginx-service
+```
+
+Résultat observé :
+
+- Service : `nginx-service`
+- Type : `ClusterIP`
+- Adresse : `10.110.107.145`
+- Port : `80/TCP`
+- Endpoints : `10.244.1.65:80` et `10.244.2.39:80`
+
+Le Service sélectionne automatiquement les deux Pods grâce au Label `app=nginx`.
+
+#### 9.5 - DNS interne et communication entre Pods
+
+Kubernetes utilise CoreDNS pour permettre aux applications de retrouver les Services à partir de leur nom DNS. Un Pod BusyBox a été créé pour réaliser les tests réseau.
+
+```bash
+kubectl run dns-test \
+  --image=busybox:1.36 \
+  --restart=Never \
+  --command -- sleep 3600
+```
+
+**Résolution DNS**
+
+```bash
+kubectl exec dns-test -- \
+  nslookup nginx-service.default.svc.cluster.local
+```
+
+Résultat attendu :
+
+```text
+Name: nginx-service.default.svc.cluster.local
+Address: 10.110.107.145
+```
+
+**Test HTTP**
+
+```bash
+kubectl exec dns-test -- \
+  wget -qO- http://nginx-service
+```
+
+La page HTML d'accueil de Nginx est retournée.
+
+![Flux HTTP entre un Pod client, le Service et les Pods Nginx](docs/images/Services-gestion/flux-requete-http-pod-service-endpoints.png)
+
+*Figure 2 — Chemin logique d'une requête HTTP depuis un Pod client vers les endpoints Nginx.*
+
+Cette expérimentation valide la résolution DNS interne et la communication entre Pods à travers un Service ClusterIP.
+
+#### 9.6 - Deployment et ReplicaSet
+
+Après les déploiements manuels, un Deployment a été créé pour automatiser la gestion des Pods Nginx.
+
+**Manifeste `nginx-deployment.yaml`**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx-deployment
+  template:
+    metadata:
+      labels:
+        app: nginx-deployment
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+```
+
+Application :
+
+```bash
+kubectl apply -f nginx-deployment.yaml
+```
+
+Vérification :
+
+```bash
+kubectl get deployments
+kubectl get replicasets
+kubectl get pods -l app=nginx-deployment -o wide
+```
+
+Résultat observé :
+
+- Deployment : `nginx-deployment`
+- ReplicaSet : `nginx-deployment-75f6447756`
+- Nombre de réplicas souhaité : 3
+- Nombre de Pods disponibles : 3
+
+**Relation entre les objets Kubernetes**
+
+Le Deployment pilote le ReplicaSet, qui maintient le nombre de Pods demandé. Le Service sélectionne les Pods grâce à leurs Labels et fournit un point d'accès réseau stable.
+
+![Relation entre Deployment, ReplicaSet, Pods et Service](docs/images/Services-gestion/relation-deployment-replicaset-pods-service.png)
+
+*Figure 3 — Relation hiérarchique entre Deployment, ReplicaSet et Pods, avec le Service comme point d'accès.*
+
+#### 9.7 - Test d'auto-réparation du Deployment
+
+L'un des principaux avantages d'un Deployment est le maintien de l'état souhaité de l'application. Pour vérifier ce comportement, un Pod a été supprimé manuellement.
+
+```bash
+kubectl delete pod nginx-deployment-75f6447756-2tkk2
+```
+
+Surveillance :
+
+```bash
+kubectl get pods -l app=nginx-deployment -w
+```
+
+Le ReplicaSet a détecté qu'il ne restait plus que deux Pods et a automatiquement créé un nouveau Pod :
+
+```text
+nginx-deployment-75f6447756-vqp2z
+```
+
+Le Deployment est ensuite revenu à trois Pods disponibles.
+
+> [!IMPORTANT]
+> Kubernetes ne restaure pas le Pod supprimé à l'identique. Il en crée un nouveau à partir du modèle défini dans le Deployment.
+
+#### 9.8 - Analyse de la répartition sur les Workers
+
+Après le remplacement du Pod supprimé, la répartition observée était la suivante :
+
+| Nœud | Adresse IP du nœud | Nombre de Pods |
+|---|---|---:|
+| k8s-worker-01 | 192.168.189.11 | 2 |
+| k8s-worker-02 | 192.168.189.12 | 1 |
+| k8s-control-plane | 192.168.189.10 | 0 |
+
+Adresses IP des Pods :
+
+- Worker 01 : `10.244.1.67` et `10.244.1.68`
+- Worker 02 : `10.244.2.41`
+
+![Répartition des Pods du Deployment sur les Workers](docs/images/Services-gestion/repartition-pods-workers.png)
+
+*Figure 4 — Répartition observée des trois Pods du Deployment sur les deux Workers.*
+
+**Interprétation**
+
+La répartition 2 + 1 est normale. Kubernetes utilise son Scheduler pour placer les Pods sur les nœuds disponibles, en tenant compte des ressources, des contraintes et des règles de planification. Avec trois réplicas et deux Workers, Kubernetes ne garantit pas automatiquement une répartition parfaitement équilibrée.
+
+Pour observer la distribution :
+
+```bash
+kubectl get pods \
+  -l app=nginx-deployment \
+  -o wide
+```
+
+Pour imposer ultérieurement une meilleure distribution, il est possible d'étudier `topologySpreadConstraints` et les règles d'affinité.
+
+#### 9.9 - Service dédié au Deployment
+
+Un second Service a été créé pour exposer exclusivement les trois Pods du Deployment.
+
+**Manifeste `nginx-deployment-service.yaml`**
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-deployment-service
+spec:
+  type: ClusterIP
+  selector:
+    app: nginx-deployment
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80
+```
+
+Application :
+
+```bash
+kubectl apply -f nginx-deployment-service.yaml
+```
+
+Vérification :
+
+```bash
+kubectl get services
+kubectl get endpoints nginx-deployment-service
+```
+
+Résultat observé :
+
+| Propriété | Valeur |
+|---|---|
+| Service | nginx-deployment-service |
+| Type | ClusterIP |
+| ClusterIP | 10.102.64.231 |
+| Port | 80/TCP |
+| Endpoints | 3 Pods |
+
+Ce Service utilise le Label `app=nginx-deployment`, différent du Label `app=nginx` des Pods créés manuellement. Les deux Services sont donc indépendants.
+
+#### 9.10 - Validation HTTP avec port-forward
+
+Pour tester le Service du Deployment depuis le Control Plane, un transfert de port temporaire a été utilisé.
+
+```bash
+kubectl port-forward svc/nginx-deployment-service 8081:80
+```
+
+Dans un second terminal :
+
+```bash
+curl -I http://127.0.0.1:8081
+```
+
+Résultat obtenu :
+
+```text
+HTTP/1.1 200 OK
+Server: nginx/1.31.8
+Content-Type: text/html
+```
+
+Le code HTTP `200 OK` confirme que le serveur Nginx a répondu correctement.
+
+> [!NOTE]
+> Le `port-forward` est un mécanisme de diagnostic temporaire. Il ne transforme pas le Service ClusterIP en service accessible de manière permanente depuis le réseau local.
+
+#### 9.11 - Bilan des tests
+
+| Test | Résultat |
+|---|---|
+| État des nœuds | 3/3 Ready |
+| Pods Nginx statiques | 2/2 Running |
+| Service nginx-service | 2 endpoints |
+| Résolution DNS interne | Réussie |
+| Communication HTTP interne | Réussie |
+| Deployment Nginx | 3/3 disponibles |
+| Auto-réparation | Nouveau Pod créé |
+| Service du Deployment | 3 endpoints |
+| Test HTTP via port-forward | HTTP 200 OK |
+
+![Synthèse des tests Kubernetes](docs/images/Services-gestion/bilan-tests-kubernetes.png)
+
+*Figure 5 — Synthèse visuelle des principaux tests réalisés et validés.*
+
+#### 9.12 - Commandes de référence
+
+**État du cluster**
+
+```bash
+kubectl get nodes -o wide
+kubectl get namespaces
+kubectl get pods -A
+```
+
+**Gestion des Pods**
+
+```bash
+kubectl get pods -o wide
+kubectl describe pod nginx-test
+kubectl get pods --show-labels
+```
+
+**Gestion des Services**
+
+```bash
+kubectl get services
+kubectl describe service nginx-service
+kubectl get endpoints nginx-service
+```
+
+**Gestion des Deployments**
+
+```bash
+kubectl get deployments
+kubectl get replicasets
+kubectl get pods -l app=nginx-deployment -o wide
+```
+
+**Diagnostic réseau**
+
+```bash
+kubectl exec dns-test -- nslookup nginx-service.default.svc.cluster.local
+kubectl exec dns-test -- wget -qO- http://nginx-service
+```
+
+#### 9.13 - Conclusion de l'étape
+
+Ce laboratoire a permis de mettre en pratique les principaux mécanismes de gestion des applications Kubernetes. Les expérimentations ont démontré la complémentarité des objets Kubernetes :
+
+- Les Pods exécutent les applications.
+- Les Labels identifient les ressources.
+- Les Services assurent un accès réseau stable.
+- Les Endpoints identifient les Pods ciblés.
+- Les ReplicaSets maintiennent le nombre de réplicas.
+- Les Deployments pilotent les ReplicaSets et facilitent la gestion du cycle de vie des applications.
+
+Le cluster a validé les tests de communication réseau, de résolution DNS, d'exposition par Service et d'auto-réparation.
+
+**Pistes d'approfondissement**
+
+1. La mise à l'échelle avec `kubectl scale`.
+2. Les mises à jour progressives avec Rolling Update.
+3. Le retour à une version précédente avec Rollback.
+4. La configuration des applications avec ConfigMap et Secret.
+5. La persistance des données avec PersistentVolume et PersistentVolumeClaim.
+6. L'exposition externe des applications avec NodePort et Ingress.
+7. La répartition contrôlée des Pods avec `topologySpreadConstraints`.
+
+Document détaillé : [`docs/08-applications-services.md`](docs/08-applications-services.md)
+
+---
+
+### Étape 10 - Documenter les problèmes (troubleshooting)
 
 Pour chaque incident, noter : le message d'erreur exact, la machine concernée, les commandes de diagnostic, la cause confirmée si elle est connue, la correction et le résultat après correction.
 
-#### 9.1 - Incidents liés aux VM et au réseau (phase de préparation)
+#### 10.1 - Incidents liés aux VM et au réseau (phase de préparation)
 
 | Symptôme | Cause confirmée | Correction |
 |---|---|---|
@@ -1452,7 +1913,7 @@ Pour chaque incident, noter : le message d'erreur exact, la machine concernée, 
 | `Network error: Connection refused` dans MobaXterm | OpenSSH server non installé sur la VM, rien n'écoute sur le port 22 | Installer et démarrer OpenSSH (étape 1.5.2) |
 | `Access denied` dans MobaXterm alors que le mot de passe est correct | Nom d'utilisateur erroné : nom d'hôte saisi à la place du compte, ou faute de frappe | Utiliser le compte créé à l'installation (`ubuntu-server-01`, `ubuntu-worker-01`…) |
 
-#### 9.2 - Erreurs de cluster rencontrées lors du déploiement réel
+#### 10.2 - Erreurs de cluster rencontrées lors du déploiement réel
 
 Le détail complet (E1→E16) est documenté dans le bloc ci-dessous. Résumé :
 
@@ -1995,9 +2456,9 @@ Document détaillé : [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)
 - [x] Les deux Workers ont rejoint le cluster.
 - [x] `kubectl get nodes -o wide` affiche trois nœuds `Ready`.
 - [x] Les pods système sont dans un état attendu.
-- [ ] Un déploiement de test fonctionne.
+- [x] Un déploiement de test fonctionne.
 - [ ] Rancher est accessible et permet de consulter le cluster.
-- [ ] Les versions, commandes et résultats sont documentés.
+- [x] Les versions, commandes et résultats sont documentés.
 
 > [!IMPORTANT]
 > Coche chaque case uniquement après avoir effectué et vérifié le test correspondant.
@@ -2031,6 +2492,10 @@ Document détaillé : [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)
 - Après un `kubeadm init`, vérifier systématiquement `kubectl get nodes`, `kubectl get pods -A` et `kubeadm token create --print-join-command`.
 - Ne pas faire de `kubeadm reset` par réflexe : chercher d'abord la cause réelle (`kubectl get pods -A`, `kubectl describe`, journaux).
 - Tester la résolution DNS des nœuds (`time resolvectl query quay.io`, `curl -I`) avant d'installer des charts qui téléchargent des images.
+- Utiliser des Labels cohérents et documentés pour les Pods, Services et Deployments.
+- Préférer un Deployment à des Pods nus pour les applications qui doivent rester disponibles.
+- Valider un Service avec `kubectl get endpoints` : un Service sans endpoint ne route aucun trafic.
+- Réserver `port-forward` au diagnostic ; pour un accès durable, utiliser `NodePort` ou `Ingress`.
 
 ---
 
@@ -2051,6 +2516,15 @@ Document détaillé : [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)
 - [Installer Rancher sur Kubernetes avec Helm](https://ranchermanager.docs.rancher.com/getting-started/installation-and-upgrade/install-upgrade-on-a-kubernetes-cluster)
 - [Installer Docker Engine sur Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
 - [MobaXterm](https://mobaxterm.mobatek.net/)
+- [Kubernetes — Pods](https://kubernetes.io/docs/concepts/workloads/pods/)
+- [Kubernetes — Labels et Selectors](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+- [Kubernetes — Services](https://kubernetes.io/docs/concepts/services-networking/service/)
+- [Kubernetes — Endpoints](https://kubernetes.io/docs/concepts/services-networking/service/#endpointslices)
+- [Kubernetes — Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/)
+- [Kubernetes — ReplicaSet](https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/)
+- [Kubernetes — DNS pour les Services et Pods](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/)
+- [Kubernetes — kubectl port-forward](https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/)
+- [Kubernetes — topologySpreadConstraints](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/)
 
 ---
 
@@ -2072,13 +2546,14 @@ k8s-worker-02       Ready    <none>          5d22h   v1.30.14   Ubuntu 26.04.1 L
 
 **Pods système et applicatifs :** tous `Running`, dont les trois pods `cert-manager` (`cert-manager`, `cert-manager-cainjector`, `cert-manager-webhook`), Flannel sur les 3 nœuds et CoreDNS (×2).
 
-**Bilan :** cluster Kubernetes `v1.30.14` opérationnel — 1 Control Plane + 2 Workers `Ready`, cert-manager `Running`. Deux incidents majeurs ont été traités après la mise en place du cluster : le swap actif sur les Workers (E14) et les timeouts DNS (E15/E16).
+**Applications de test :** deux Pods Nginx (`nginx-test`, `nginx-worker01`), le Deployment `nginx-deployment` (3 réplicas) et les Services `nginx-service` / `nginx-deployment-service` sont déployés et validés (voir Étape 9).
+
+**Bilan :** cluster Kubernetes `v1.30.14` opérationnel — 1 Control Plane + 2 Workers `Ready`, cert-manager `Running`, applications déployées, exposées et auto-réparées. Deux incidents majeurs ont été traités après la mise en place du cluster : le swap actif sur les Workers (E14) et les timeouts DNS (E15/E16).
 
 **Restant à faire :**
 
 - Valider DNS-over-TLS sur les trois nœuds (`time curl -I --connect-timeout 10 https://quay.io` en moins de 2 s, sans `-4`).
 - Redémarrer les Workers (nouveau noyau `7.0.0-42` installé mais non chargé) et vérifier `swapon --show` au retour.
-- Refaire le déploiement de test `nginx-test` jusqu'à `Running` (étape 8).
 - Installer Rancher (étape 7.1).
 
 **Dernière mise à jour :** 2026-11-03.
