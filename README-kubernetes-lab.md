@@ -1,6 +1,6 @@
 # Kubernetes Lab - Ubuntu Server 24.04 LTS
 
-Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 Workers) sur trois machines virtuelles Ubuntu Server 24.04.1 LTS sous VMware Workstation avec le réseau NAT (`VMnet8`), puis intégrer Rancher pour l'administration du cluster.
+Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 Workers) sur trois machines virtuelles Ubuntu Server 24.04.1 LTS sous VMware Workstation avec le réseau NAT (`VMnet8`), puis intégrer Rancher pour l'administration du cluster. Les VM ont ensuite été mises à niveau vers Ubuntu Server 26.04.1 LTS (voir la section 2).
 
 > [!NOTE]
 > Les blocs **« Pour aller plus loin »** ne sont pas nécessaires pour réaliser le laboratoire. Ils conservent les méthodes alternatives, les diagnostics détaillés et les explications destinés aux prochains intervenants qui voudront approfondir.
@@ -38,7 +38,7 @@ Projet de laboratoire pour déployer un cluster Kubernetes (1 Control Plane, 2 W
 ### Spécifications de l'environnement
 
 - **Hyperviseur :** VMware Workstation (réseau NAT `VMnet8`)
-- **Système d'exploitation :** Ubuntu Server `24.04` installé à l'origine depuis l'ISO, puis mis à niveau vers `26.04.1 LTS` (`resolute`) : version actuelle sur les trois VM, avec les noyaux `7.0.0-42-generic` (Control Plane) et `7.0.0-38-generic` (Workers). Sans interface graphique (vérifier la version exacte avec `lsb_release -a`) 
+- **Système d'exploitation :** Ubuntu Server `24.04` installé à l'origine depuis l'ISO, puis mis à niveau vers `26.04.1 LTS` (`resolute`) : version actuelle sur les trois VM, avec les noyaux `7.0.0-42-generic` (Control Plane) et `7.0.0-38-generic` (Workers). Sans interface graphique (vérifier la version exacte avec `lsb_release -a`).
 - **Sous-réseau NAT :** `192.168.189.0/24` (plage DHCP VMware : `192.168.189.128` à `192.168.189.254`)
 - **Adresse de l'hôte Windows sur VMnet8 :** `192.168.189.1`
 - **Passerelle NAT :** `192.168.189.2`
@@ -537,6 +537,9 @@ sudo apt update
 > [!NOTE]
 > Un `ping` vers l'extérieur peut échouer alors qu'Internet fonctionne (ICMP filtré par le NAT, un pare-feu ou un VPN). Le test fiable est `sudo apt update` ou `curl -I https://archive.ubuntu.com`, avec la résolution DNS (`getent hosts`).
 
+> [!WARNING]
+> Un `apt update` qui fonctionne ne prouve pas que le DNS est sain : dans ce lab, les requêtes `AAAA` restaient sans réponse et les téléchargements d'images échouaient par intermittence (voir **E16**). Tester aussi `time curl -I --connect-timeout 10 https://quay.io` avant de déployer des charts Helm.
+
 Documenter les résultats observés avant de passer à l'installation de `containerd` et de Kubernetes.
 
 <details>
@@ -615,7 +618,6 @@ sysctl net.ipv4.ip_forward
 
 > [!NOTE]
 > Vérifier aussi **après chaque redémarrage** avec `swapon --show` (aucune ligne attendue). Un swap actif empêche `kubelet` de démarrer (voir E14).
-
 
 <details>
 <summary><strong>Pour aller plus loin - Swap en détail</strong></summary>
@@ -1169,6 +1171,7 @@ kubectl get pods -A
 kubectl describe node k8s-worker-01
 ```
 
+Examiner le runtime, le CNI et les événements Kubernetes, puis vérifier qu'un seul CNI est installé avec le bon CIDR (point 4).
 
 > [!CAUTION]
 > **Erreur rencontrée : `kubectl` échoue après `sudo su`**
@@ -1187,7 +1190,7 @@ kubectl describe node k8s-worker-01
 
 Trois méthodes permettent de corriger cette erreur. Choisir la plus adaptée au contexte.
 
-### Option 1 — Quitter root (la plus simple)
+**Option 1 — Quitter root (la plus simple)**
 
 ```bash
 exit
@@ -1206,7 +1209,7 @@ k8s-worker-02       Ready    <none>          2d3h   v1.30.14
 
 C'est la méthode la plus simple et celle qui a résolu le problème dans ce laboratoire : `ubuntu-server-01` possède déjà `~/.kube/config` depuis l'étape 6.1.
 
-### Option 2 — Rester root, mais exporter `KUBECONFIG`
+**Option 2 — Rester root, mais exporter `KUBECONFIG`**
 
 ```bash
 export KUBECONFIG=/etc/kubernetes/admin.conf
@@ -1223,7 +1226,7 @@ kubectl get nodes
 > source /root/.bashrc
 > ```
 
-### Option 3 — Copier le kubeconfig dans `/root/.kube/`
+**Option 3 — Copier le kubeconfig dans `/root/.kube/`**
 
 ```bash
 mkdir -p /root/.kube
@@ -1243,17 +1246,7 @@ C'est l'équivalent de ce qui a été fait pour `ubuntu-server-01`, mais pour ro
 > | `root` | `/root/.kube/config` (n'existe pas par défaut) |
 > | N'importe qui avec `KUBECONFIG` | `$KUBECONFIG` (prioritaire sur `~/.kube/config`) |
 
----
-
 **Résolution retenue dans ce laboratoire :** Option 1 (`exit` pour revenir à `ubuntu-server-01`). Le cluster répond correctement, les trois nœuds sont `Ready`.
-
-
----
-
----
-
-
-Examiner le runtime, le CNI et les événements Kubernetes, puis vérifier qu'un seul CNI est installé avec le bon CIDR (point 4).
 
 **10. Points d'attention — Résumé global**
 
@@ -1264,6 +1257,7 @@ Examiner le runtime, le CNI et les événements Kubernetes, puis vérifier qu'un
 > **Le `--pod-network-cidr` de `kubeadm init` doit correspondre au CIDR attendu par le CNI.**
 > - **Flannel** attend `10.244.0.0/16` par défaut.
 > - **Calico** via `custom-resources.yaml` attend le CIDR que vous y mettez (souvent `192.168.0.0/16` par défaut, d'où l'édition avec `nano`).
+>
 > Un décalage entre ces deux valeurs empêche les pods d'obtenir une IP et laisse le nœud en `NotReady`.
 
 > [!CAUTION]
@@ -1301,7 +1295,6 @@ Pour ce laboratoire, étudier l'installation de Rancher sur Kubernetes avec Helm
 
 Résumé des commandes principales :
 
-
 ```bash
 # 1. Installer Helm
 curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
@@ -1335,25 +1328,19 @@ helm install rancher rancher-latest/rancher \
 
 Accès : `https://rancher.192.168.189.10.sslip.io:<PORT>` (admin / admin)
 
-
 > [!IMPORTANT]
-> Les trois pods `cert-manager` doivent être `Running` avant l'installation de Rancher (`kubectl get pods -n cert-manager`). Sinon, voir E15.
+> Les trois pods `cert-manager` doivent être `Running` avant l'installation de Rancher (`kubectl get pods -n cert-manager`). Sinon, voir **E15** et **E16**.
 > Après l'installation, `kubectl get svc -n cattle-system` donne le port NodePort réel (entre 30000 et 32767) à mettre dans l'URL.
-
-
 
 #### 7.2 - Installation pour une entreprise (haute disponibilité)
 
-
 > [!WARNING]
 > Cette section décrit une installation **HA** (production). Elle nécessite un cluster Kubernetes **dédié** avec **au moins 3 nœuds** et un **load balancer L4** en amont. **Ne l'appliquez pas sur votre lab mono-nœud.**
-
 
 > [!NOTE]
 > Procédure complète : **[`docs/05-rancher-enterprise.md`](docs/05-rancher-enterprise.md)**
 
 Différences clés par rapport au lab :
-
 
 | Paramètre | Lab (7.1) | Entreprise (7.2) |
 |---|---|---|
@@ -1368,38 +1355,7 @@ Différences clés par rapport au lab :
 > [!NOTE]
 > Procédure complète : **[`docs/rancher-vagrant-virtualBox.md`](docs/rancher-vagrant-virtualBox.md)**
 
-Méthode alternative basée sur Vagrant + RKE, pour comparer avec `kubeadm` + Helm.
-
-Documentation : [`docs/05-rancher.md`](docs/05-rancher.md), [`docs/05-rancher-enterprise.md`](docs/05-rancher-enterprise.md), [`docs/rancher-vagrant-virtualBox.md`](docs/rancher-vagrant-virtualBox.md)
-
-
-
-
----
-
-
-
-
-
-##### 5. Créer le namespace pour Rancher
-
-```bash
-kubectl create namespace cattle-system
-```
-
-
-
-
-
-
-
-#### 7.2 - Pour aller plus loin — Rancher avec Vagrant, VirtualBox et RKE
-
-Une méthode alternative de déploiement local de Kubernetes et de Rancher est documentée ici :
-
-- [Configuration locale de Rancher avec Vagrant, VirtualBox et RKE](docs/rancher-vagrant-virtualBox.md)
-
-Cette approche repose sur :
+Méthode alternative de déploiement local de Kubernetes et de Rancher, basée sur Vagrant + RKE, pour comparer avec `kubeadm` + Helm.
 
 | Technologie | Rôle |
 |---|---|
@@ -1419,7 +1375,7 @@ Un conteneur Docker Rancher unique peut servir à des tests rapides, mais cette 
 
 </details>
 
-Document détaillé : [`docs/05-rancher.md`](docs/05-rancher.md)
+Documentation : [`docs/05-rancher.md`](docs/05-rancher.md), [`docs/05-rancher-enterprise.md`](docs/05-rancher-enterprise.md), [`docs/rancher-vagrant-virtualBox.md`](docs/rancher-vagrant-virtualBox.md)
 
 ---
 
@@ -1440,7 +1396,7 @@ Test de déploiement :
 
 ```bash
 kubectl create deployment nginx-test --image=nginx
-kubectl get pods -o wide
+kubectl get pods -o wide -w       # attendre STATUS Running, puis Ctrl + C
 kubectl delete deployment nginx-test
 ```
 
@@ -1469,6 +1425,9 @@ kube-system    kube-scheduler-k8s-control-plane            1/1     Running
 > [!NOTE]
 > Juste après la jonction, un Worker peut apparaître `NotReady` pendant une à deux minutes, et ses pods `kube-proxy` redémarrer une ou deux fois : le temps que Flannel et `kube-proxy` s'installent. Relancer `kubectl get nodes` avant de conclure à un problème.
 
+> [!NOTE]
+> **Test de déploiement à refaire.** Lors d'un premier essai, `nginx-test` était encore en `ContainerCreating` (15 s) quand il a été supprimé : le test n'est donc pas validé. À refaire en attendant `Running`, puis à noter ici la sortie réelle de `kubectl get pods -o wide`.
+
 Document détaillé : [`docs/06-validation.md`](docs/06-validation.md)
 
 ---
@@ -1495,7 +1454,7 @@ Pour chaque incident, noter : le message d'erreur exact, la machine concernée, 
 
 #### 9.2 - Erreurs de cluster rencontrées lors du déploiement réel
 
-Le détail complet (E1→E17) est documenté dans le bloc ci-dessous. Résumé :
+Le détail complet (E1→E16) est documenté dans le bloc ci-dessous. Résumé :
 
 | # | Erreur | Cause | Correction clé |
 |---|---|---|---|
@@ -1512,13 +1471,12 @@ Le détail complet (E1→E17) est documenté dans le bloc ci-dessous. Résumé :
 | E11 | `kubectl: not found` sur worker | `kubectl` non installé sur les workers | Lancer `kubectl` sur le control plane |
 | E12 | containerd paquet Ubuntu vs `.io` | Choix de paquet | Rester cohérent (paquet Ubuntu + SystemdCgroup) |
 | E13 | Prérequis manquants | Swap, modules, sysctl | Étape 3 |
-| E14 | `kubelet` en `activating (auto-restart)`, journal : `running with swap on is not supported` | Swap actif sur un Worker (`/swap.img` encore monté) | `sudo swapoff -a`, commenter la ligne swap dans `/etc/fstab`, `sudo systemctl restart kubelet` |
-| E15 | Pods `cert-manager` et `cert-manager-webhook` en `ImagePullBackOff` | Timeouts réseau/DNS vers `quay.io` sur le Worker (`i/o timeout`, `TLS handshake timeout`) | Attendre les retries de kubelet (le pull a fini par réussir) ; vérifier la résolution DNS du nœud |
-| E16 | Timeouts DNS (`dig @1.1.1.1` en timeout, `curl -I` échoue) sur les 3 nœuds | UDP 53 bloqué en amont + `192.168.189.2` DNS peu fiable + préférence IPv6 sans route | **DNSOverTLS** dans `systemd-resolved` + retrait de `192.168.189.2` des `nameservers` Netplan |
-| E17 | `kubectl create deployment` échoue avec `[::1]:6443` alors que `kubectl get` fonctionne | **IPv6 désactivé à chaud après démarrage du kube-apiserver** — client loopback `ResourceQuota` cassé | Réactiver IPv6 + `systemctl restart kubelet` sur le Control Plane |
+| E14 | `kubelet` en `activating (auto-restart)`, journal : `running with swap on is not supported` | Swap actif sur les deux Workers (`/swap.img` encore monté) | `sudo swapoff -a`, commenter la ligne swap dans `/etc/fstab`, `sudo systemctl restart kubelet` |
+| E15 | Pods `cert-manager` et `cert-manager-webhook` en `ImagePullBackOff` | Timeouts réseau/DNS vers `quay.io` sur le Worker (`i/o timeout`, `TLS handshake timeout`) | Aucune action sur les images : kubelet a réessayé, les pods sont passés `Running` ; la cause DNS est traitée en E16 |
+| E16 | `dig AAAA` en timeout, `curl -I` (sans `-4`) échoue par intermittence sur les 3 nœuds | Requêtes `AAAA` sans réponse sur le port 53 (origine non établie) | **DNSOverTLS** dans `systemd-resolved` + retrait de `192.168.189.2` des `nameservers` du Control Plane |
 
 <details>
-<summary><strong>Pour aller plus loin - Retour d'expérience détaillé du déploiement (E1→E17)</strong></summary>
+<summary><strong>Pour aller plus loin - Retour d'expérience détaillé du déploiement (E1→E16)</strong></summary>
 
 Ce déroulé reprend, dans l'ordre, chaque erreur rencontrée pendant le déploiement, avec la commande fautive, la sortie exacte, le diagnostic et la résolution. Il est destiné aux prochains intervenants pour éviter de reproduire les mêmes pièges.
 
@@ -1825,7 +1783,6 @@ overlay
 br_netfilter
 EOF
 
-
 cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
 net.bridge.bridge-nf-call-iptables  = 1
 net.bridge.bridge-nf-call-ip6tables = 1
@@ -1853,9 +1810,9 @@ failed to run Kubelet: running with swap on is not supported, please disable swa
 kubelet.service: Scheduled restart job, restart counter is at 343
 ```
 
-**Diagnostic :** `/swap.img` était actif, et `kubelet` refuse de démarrer dans ce cas. Le compteur à 343 redémarrages montre que le problème durait depuis longtemps : les pods Flannel et `kube-proxy` du nœud affichaient plus de 300 redémarrages pour la même raison. La cause exacte du retour du swap n'est pas établie (préparation de l'étape 3 non appliquée sur ce nœud, ou ligne `/etc/fstab` restaurée).
+**Diagnostic :** `/swap.img` était actif, et `kubelet` refuse de démarrer dans ce cas. **Les deux Workers étaient touchés** : le compteur de redémarrages de `kubelet` atteignait 343 sur `k8s-worker-01` et 381 sur `k8s-worker-02`, avec la même erreur. Le problème durait donc depuis longtemps : les pods Flannel et `kube-proxy` des nœuds affichaient plus de 300 redémarrages pour la même raison. La cause exacte du retour du swap n'est pas établie (préparation de l'étape 3 non appliquée sur ces nœuds, ou ligne `/etc/fstab` restaurée).
 
-**Résolution :**
+**Résolution (sur chaque Worker) :**
 
 ```bash
 sudo swapoff -a
@@ -1865,7 +1822,7 @@ sudo systemctl restart kubelet
 sudo ss -lntp | grep 10250      # kubelet doit écouter
 ```
 
-**Résultat :** `kubelet` passe à `active (running)` et le nœud repasse `Ready`. Vérifier `/etc/fstab` sur les trois nœuds : un simple `swapoff -a` ne survit pas au redémarrage.
+**Résultat :** `kubelet` passe à `active (running)` sur les deux Workers et `ss` montre `kubelet` à l'écoute sur le port `10250`. Vérifier `/etc/fstab` sur les trois nœuds : un simple `swapoff -a` ne survit pas au redémarrage.
 
 ---
 
@@ -1884,154 +1841,105 @@ sudo crictl pull quay.io/jetstack/cert-manager-controller:v1.21.3
 
 Le message de l'événement `Failed to pull image` donne la cause : `no such host` (DNS), `timeout` (réseau ou proxy), `manifest unknown` (tag). Ces pods ont été planifiés sur un Worker qui était alors en panne (E14) : tester le pull sur un Worker sain avant de conclure à un problème de registre.
 
-**Cause confirmée :** le `describe` des pods affiche des `i/o timeout` et des `TLS handshake timeout` vers `quay.io`, ainsi qu'un `lookup quay.io on 127.0.0.53:53: i/o timeout`. Le problème venait du réseau et du DNS, pas du tag ni du registre (`curl -I https://quay.io` répondait `HTTP/2 200` par moments). Le DNS est lent (environ 6 s par requête) sur les trois nœuds
+**Cause confirmée :** le `describe` des pods affiche des `i/o timeout` et des `TLS handshake timeout` vers `quay.io`, ainsi qu'un `lookup quay.io on 127.0.0.53:53: i/o timeout`. Le problème venait du réseau et du DNS, pas du tag ni du registre (`curl -I https://quay.io` répondait `HTTP/2 200` par moments). Le DNS était lent (environ 6 s par requête) sur les trois nœuds.
 
-Le coupable probable est le couple `1.1.1.1` / `8.8.8.8` à travers le NAT VMware, avec systemd-resolved qui attend un serveur qui répond mal avant de passer au suivant. Teste d’abord, sur un nœud :
-
-**Résolution :**
-
-```bash
-resolvectl status ens33
-time dig @192.168.189.2 quay.io +short
-time dig @1.1.1.1 quay.io +short
-```
-
-Si la passerelle `192.168.189.2` répond en moins d’une seconde et pas `1.1.1.1`, remplace les nameservers par la seule adresse `192.168.189.2` dans `/etc/netplan/50-cloud-init.yaml` sur les trois VM, puis :
-
-```bash
-sudo netplan apply
-time resolvectl query quay.io
-```
+**Résolution :** aucune action sur les images : kubelet a réessayé et les trois pods sont passés `Running`. La lenteur du DNS qui a causé ces échecs est traitée en E16.
 
 ---
 
----
+### E16 — Timeouts DNS : requêtes `AAAA` sans réponse sur le port 53, DNS-over-TLS fonctionnel
 
-### E16 — Timeouts DNS : UDP 53 bloqué, DNS-over-TLS (TCP 853) fonctionnel
-
-**Symptôme :**
+**Symptôme (sur les trois nœuds) :**
 
 ```text
 $ time dig @1.1.1.1 AAAA quay.io +short
-;; communications error to 1.1.1.1#53: timed out   (×3)
+;; communications error to 1.1.1.1#53: timed out   (x3)
 real 0m15,027s
 
-$ time dig @127.0.0.53 quay.io +short
-13.216.126.202
-34.224.59.116
-...
-real 0m0,067s           # ← le stub systemd-resolved répond !
+$ time dig @1.1.1.1 quay.io +short                 # requête A (IPv4)
+(réponse en moins d'une seconde)
 
-$ dig +tls @1.1.1.1 AAAA quay.io +short
-2600:1f18:d77:9002:c98f:7cab:507:7198    # ← TCP 853 (DoT) FONCTIONNE
+$ time dig @127.0.0.53 quay.io +short              # stub systemd-resolved, requête A
+(réponse en moins de 0,2 s)
+
+$ dig +tls @1.1.1.1 AAAA quay.io +short            # DNS chiffré, port 853
+2600:1f18:d77:9002:c98f:7cab:507:7198              # répond
 ...
 
 $ curl -I --connect-timeout 10 https://quay.io
 curl: (28) Resolving timed out after 10002 milliseconds
 
 $ curl -4 -I --connect-timeout 10 https://quay.io
-HTTP/2 200                                # ← OK en forçant IPv4
+HTTP/2 200                                         # réussit parfois, échoue à d'autres moments
 ```
 
-Les trois nœuds sont affectés de la même manière. `cert-manager` tombe en `ImagePullBackOff` (E15) **parce que** `containerd` n'arrive pas à résoudre `quay.io` de manière fiable.
+`resolvectl query quay.io` mettait environ 6 s avant les tests, et `sudo resolvectl statistics` montrait des dizaines de timeouts cumulés (52, 29 et 58 selon les nœuds).
 
-**| # | Constat | Cause |**
-|---|---|---|
-| 1 | UDP 53 et TCP 53 vers `1.1.1.1`, `8.8.8.8`, `192.168.189.2` bloqués | Filtrage amont (VMware NAT ou FAI) |
-| 2 | `192.168.189.2` configuré comme DNS dans Netplan | La passerelle VMware relaie mal le DNS |
-| 3 | `curl -I` (sans `-4`) échoue alors que `curl -4 -I` réussit | Résolution AAAA prioritaire mais aucune route IPv6 → timeout bloquant |
+**Diagnostic :**
 
-Confirmé par `sudo resolvectl statistics` :
-
-
-```text
-Failure Transactions
-  Total Timeouts:  52        # 52 requêtes en timeout
-Cache Misses: 269            # la majorité des lookups ratent
-```
+Les requêtes DNS de type `AAAA` (IPv6) sur le port 53 n'obtiennent aucune réponse, ni vers `1.1.1.1`, ni vers `8.8.8.8`, ni vers `192.168.189.2` (UDP : timeout, TCP : `connection reset`, même avec `+noedns`), alors que les requêtes `A` répondent en moins d'une seconde. Le DNS chiffré (`dig +tls`, port 853) répond aux deux types. L'origine du blocage n'est pas établie : le pare-feu Windows est écarté (test avec pare-feu désactivé), la box, le fournisseur d'accès et l'antivirus n'ont pas été testés de façon concluante.
 
 > [!NOTE]
-> **Résolution appliquée (sur les trois nœuds) :**
-> 
-> ---
-> 
-> 1. Retirer 192.168.189.2 des nameservers Netplan — il reste la passerelle via:, mais n'est plus un serveur DNS.
->
-> ```bach
-> sudo nano /etc/netplan/50-cloud-init.yaml
-> ```
->
-> La section `nameservers:` doit contenir uniquement :
->
-> ```yaml
->      nameservers:
->        addresses:
->          - 1.1.1.1
->          - 8.8.8.8
-> ```
-> 
-> ```bach
-> sudo netplan apply
->  ```
->
-> 2. Activer DNSOverTLS dans /etc/systemd/resolved.conf
-> 
-> ```bach
-> sudo nano /etc/systemd/resolved.conf
->  ```
-> 
-> Section [`Resolve`] :
->
->  ```ini
-> [Resolve]
-> DNS=1.1.1.1#cloudflare-dns.com 8.8.8.8#dns.google
-> DNSOverTLS=yes
-> DNSSEC=no
->  ```
->
-> ```bach
-> sudo systemctl restart systemd-resolved
-> ```
->
-> **Validation :**
->
-> ```bach
-> resolvectl status
-> ```
-> 
-> ```text
-> resolvectl status
-> Global
->   Protocols: -LLMNR -mDNS +DNSOverTLS DNSSEC=no/unsupported
->   DNS Servers: 1.1.1.1#cloudflare-dns.com 8.8.8.8#dns.google
-> 
-> Link 2 (ens33)
->   DNS Servers: 1.1.1.1 8.8.8.8          # 192.168.189.2 disparu ✅
-> ```
->
-> ```bach
-> time resolvectl query quay.io
-> **# quay.io: 34.224.59.116 ...**
-> **# -- Data was acquired via local or encrypted transport: yes    ← DoT actif** ✅
-> **# real 0m0,328s**
-> 
-> time curl -I --connect-timeout 10 https://quay.io
-> **# HTTP/2 200**
-> **# real 0m1,447s**
-> ```
+> **Pistes écartées :** le mode réseau VMware (NAT) n'est pas en cause, puisque les requêtes `A` passent normalement. Désactiver IPv6 à chaud (`sysctl net.ipv6.conf.all.disable_ipv6=1`) ramène `resolvectl query` sous 150 ms mais ne règle pas `curl` : ne pas le rendre permanent. Si ce sysctl a été appliqué, le remettre à `0` sur les trois nœuds.
 
-**Résultat :** `cert-manager` télécharge ses images et passe `Running` **sans aucune autre action**.
+**Résolution appliquée :**
+
+**1. Control Plane uniquement : retirer `192.168.189.2` des `nameservers` Netplan.** Il reste la passerelle (`via:`), mais il ne parle pas DNS chiffré et deviendrait inutilisable avec `DNSOverTLS=yes`. Les Workers n'avaient déjà que `1.1.1.1` et `8.8.8.8`.
+
+```bash
+sudo nano /etc/netplan/50-cloud-init.yaml
+```
+
+La section `nameservers:` doit contenir uniquement :
+
+```yaml
+      nameservers:
+        addresses:
+          - 1.1.1.1
+          - 8.8.8.8
+```
+
+```bash
+sudo netplan apply
+```
+
+**2. Sur les trois nœuds : activer DNS-over-TLS dans `/etc/systemd/resolved.conf`.**
+
+```bash
+sudo nano /etc/systemd/resolved.conf
+```
+
+Dans la section `[Resolve]` (à créer en tête de fichier si elle est absente, comme sur le Control Plane) :
+
+```ini
+[Resolve]
+DNS=1.1.1.1#cloudflare-dns.com 8.8.8.8#dns.google
+DNSOverTLS=yes
+```
+
+```bash
+sudo systemctl restart systemd-resolved
+```
+
+Commencer par un seul nœud : une erreur de syntaxe dans ce fichier peut couper la résolution de noms de la machine.
+
+**Validation :**
+
+```bash
+resolvectl status
+time resolvectl query quay.io
+time curl -I --connect-timeout 10 https://quay.io
+```
+
+Attendu : `resolvectl status` affiche `+DNSOverTLS` et les deux serveurs avec leur nom, `resolvectl query` répond en moins d'une seconde, et `curl` (sans `-4`) répond `HTTP/2 200` en moins de 2 s.
+
+**Résultat :** à compléter avec les sorties réelles des trois commandes ci-dessus sur chaque nœud.
 
 > [!IMPORTANT]
-> **Leçon à retenir :** quand plusieurs pods d'un même chart tombent en `ImagePullBackOff`, c'est rarement l'image elle-même. Tester `dig +tls @1.1.1.1` et `curl -4 -I` **avant** de suspecter le registre ou le tag. Une fois DoT actif, `Data acquired via encrypted transport: yes` confirme que le DNS passe par TLS.
+> **Leçon à retenir :** un `apt update` qui fonctionne ne prouve pas que le DNS est sain. Quand des pods d'un même chart tombent en `ImagePullBackOff`, tester `time resolvectl query <registre>` et `curl -I` (avec et sans `-4`) **avant** de suspecter le registre ou le tag.
 
 > [!NOTE]
-> `192.168.189.2` reste la passerelle NAT dans `routes: via:`. Il est simplement retiré du champ nameservers: — deux usages distincts.
-
-
-
-
-
+> `192.168.189.2` reste la **passerelle** NAT dans `routes: via:`. Il est simplement retiré du champ `nameservers:` : ce sont deux usages distincts.
 
 ---
 
@@ -2122,6 +2030,7 @@ Document détaillé : [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)
 - Ne pas s'inquiéter d'un `kubelet` en `activating (auto-restart)` avant la jonction d'un Worker.
 - Après un `kubeadm init`, vérifier systématiquement `kubectl get nodes`, `kubectl get pods -A` et `kubeadm token create --print-join-command`.
 - Ne pas faire de `kubeadm reset` par réflexe : chercher d'abord la cause réelle (`kubectl get pods -A`, `kubectl describe`, journaux).
+- Tester la résolution DNS des nœuds (`time resolvectl query quay.io`, `curl -I`) avant d'installer des charts qui téléchargent des images.
 
 ---
 
@@ -2133,6 +2042,7 @@ Document détaillé : [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)
 - [Ports et protocoles Kubernetes](https://kubernetes.io/docs/reference/networking/ports-and-protocols/)
 - [Documentation Ubuntu Server](https://documentation.ubuntu.com/server/)
 - [Documentation Netplan](https://netplan.readthedocs.io/)
+- [Documentation systemd-resolved](https://www.freedesktop.org/software/systemd/man/systemd-resolved.service.html)
 - [Documentation containerd](https://containerd.io/docs/)
 - [Documentation Flannel](https://github.com/flannel-io/flannel)
 - [Documentation Calico](https://docs.tigera.io/calico/latest)
@@ -2149,35 +2059,29 @@ Document détaillé : [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)
 > [!NOTE]
 > Le dépôt a été cloné sur le poste Windows. La clé SSH a été créée et ajoutée au compte GitHub, et le test `ssh -T git@github.com` a réussi. Les trois VM sont créées, configurées en réseau avec leurs adresses IP statiques, et accessibles en SSH avec MobaXterm.
 
-### 10.1 - État validé du cluster (au 2026-10-28)
+### 10.1 - État du cluster (au 2026-11-03)
 
-**Nœuds :**
-
-```text
-NAME                STATUS   ROLES           AGE     VERSION
-k8s-control-plane   Ready    control-plane   XXm     v1.30.14
-k8s-worker-01       Ready    <none>          Xm      v1.30.14
-k8s-worker-02       Ready    <none>          Xm      v1.30.14
-```
-
-**Pods système (extrait) :**
+**Nœuds (relevé du 2026-11-03) :**
 
 ```text
-NAMESPACE      NAME                                        READY   STATUS
-kube-flannel   kube-flannel-ds-6s2r6                       1/1     Running   (control-plane)
-kube-flannel   kube-flannel-ds-prvtd                       1/1     Running   (worker-01)
-kube-flannel   kube-flannel-ds-tvt7b                       1/1     Running   (worker-02)
-kube-system    coredns-*                                   1/1     Running   (×2)
-kube-system    etcd-k8s-control-plane                      1/1     Running
-kube-system    kube-apiserver-k8s-control-plane            1/1     Running
-kube-system    kube-controller-manager-k8s-control-plane   1/1     Running
-kube-system    kube-proxy-*                                1/1     Running   (×3)
-kube-system    kube-scheduler-k8s-control-plane            1/1     Running
+NAME                STATUS   ROLES           AGE     VERSION    OS-IMAGE             KERNEL-VERSION
+k8s-control-plane   Ready    control-plane   5d23h   v1.30.14   Ubuntu 26.04.1 LTS   7.0.0-42-generic
+k8s-worker-01       Ready    <none>          5d22h   v1.30.14   Ubuntu 26.04.1 LTS   7.0.0-38-generic
+k8s-worker-02       Ready    <none>          5d22h   v1.30.14   Ubuntu 26.04.1 LTS   7.0.0-38-generic
 ```
 
-**Bilan :** cluster Kubernetes `v1.30.14` opérationnel — 1 Control Plane + 2 Workers, tous `Ready`, Flannel actif sur les 3 nœuds, CoreDNS en `Running`.
+**Pods système et applicatifs :** tous `Running`, dont les trois pods `cert-manager` (`cert-manager`, `cert-manager-cainjector`, `cert-manager-webhook`), Flannel sur les 3 nœuds et CoreDNS (×2).
 
-**Dernière mise à jour :** 2026-10-28.
+**Bilan :** cluster Kubernetes `v1.30.14` opérationnel — 1 Control Plane + 2 Workers `Ready`, cert-manager `Running`. Deux incidents majeurs ont été traités après la mise en place du cluster : le swap actif sur les Workers (E14) et les timeouts DNS (E15/E16).
+
+**Restant à faire :**
+
+- Valider DNS-over-TLS sur les trois nœuds (`time curl -I --connect-timeout 10 https://quay.io` en moins de 2 s, sans `-4`).
+- Redémarrer les Workers (nouveau noyau `7.0.0-42` installé mais non chargé) et vérifier `swapon --show` au retour.
+- Refaire le déploiement de test `nginx-test` jusqu'à `Running` (étape 8).
+- Installer Rancher (étape 7.1).
+
+**Dernière mise à jour :** 2026-11-03.
 
 ---
 
