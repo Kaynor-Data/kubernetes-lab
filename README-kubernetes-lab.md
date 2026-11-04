@@ -762,7 +762,7 @@ Dans ce laboratoire, le paquet Ubuntu `containerd` (`2.2.2-0ubuntu1.2`) est inst
 
 ### Étape 5 - Installer les outils Kubernetes (`kubeadm`, `kubelet`, `kubectl`)
 
-<img src="docs/kubernetes/kubernetes-installation-guide.jpg" alt="Guide d'installation de Kubernetes" width="1050">
+<img src="docs/images/kubernetes/installation-guide/kubernetes-installation-guide.jpg" alt="Guide d'installation de Kubernetes" width="1050">
 
 <h2 style="display: flex; align-items: center; gap: 12px;">
   <img src="docs/images/favicon/accroche.jpg" alt="Puzzle" width="36" style="vertical-align: middle;">
@@ -1441,6 +1441,8 @@ Document détaillé : [`docs/06-validation.md`](docs/06-validation.md)
 ---
 
 ### Étape 9 - Gestion des applications et des Services Kubernetes
+
+![Google Cloud Platform](docs/images/kubernetes/Gestion-et-Services-Kubernetes/Gestion-&-Services-Kubernetes.jpg)
 
 Ce document présente les manipulations réalisées dans le laboratoire Kubernetes pour comprendre le déploiement, l'exposition et la gestion des applications conteneurisées au sein d'un cluster Kubernetes.
 
